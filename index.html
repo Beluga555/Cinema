@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Наше кино</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0f0f12; --panel:#18181d; --panel2:#222229; --line:#2c2c35;
+    --text:#f1f1f3; --muted:#9a9aa6; --accent:#ff6a1a; --vova:#4da3ff; --nika:#ff5fa2;
+    --radius:14px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 Manrope,system-ui,sans-serif}
+  button,input,textarea,select{font:inherit;color:inherit}
+  button{cursor:pointer}
+  .wrap{max-width:1100px;margin:0 auto;padding:0 16px}
+  header{position:sticky;top:0;z-index:5;background:rgba(15,15,18,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+  header .wrap{display:flex;align-items:center;gap:16px;height:60px}
+  .logo{font-weight:800;font-size:20px;letter-spacing:-.02em}
+  .logo span{color:var(--accent)}
+  nav{display:flex;gap:4px;margin-left:auto;overflow-x:auto}
+  nav button{background:none;border:0;padding:8px 12px;border-radius:10px;color:var(--muted);white-space:nowrap}
+  nav button.on{background:var(--panel2);color:var(--text)}
+  .me{color:var(--muted);font-size:13px;white-space:nowrap}
+  .me button{background:none;border:0;color:var(--muted);text-decoration:underline;padding:0 0 0 6px}
+  main{padding:24px 0 60px}
+  h2{margin:0 0 16px;font-size:22px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:18px}
+  .card{background:var(--panel);border-radius:var(--radius);overflow:hidden;cursor:pointer;transition:transform .15s}
+  .card:hover{transform:translateY(-3px)}
+  .poster{aspect-ratio:2/3;background:var(--panel2) center/cover no-repeat;position:relative}
+  .poster .badges{position:absolute;left:8px;bottom:8px;display:flex;gap:6px}
+  .badge{font-weight:800;font-size:13px;padding:3px 8px;border-radius:8px;background:rgba(0,0,0,.75)}
+  .badge.v{color:var(--vova)} .badge.n{color:var(--nika)}
+  .card .info{padding:10px 12px 12px}
+  .card .t{font-weight:600;line-height:1.25}
+  .card .y{color:var(--muted);font-size:13px;margin-top:2px}
+  .empty{color:var(--muted);padding:40px 0;text-align:center}
+  .search{display:flex;gap:8px;margin-bottom:20px}
+  .search input{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;outline:none}
+  .search input:focus{border-color:var(--accent)}
+  .btn{background:var(--accent);border:0;border-radius:12px;padding:10px 16px;font-weight:600;color:#fff}
+  .btn.ghost{background:var(--panel2);color:var(--text)}
+  .btn.small{padding:7px 10px;font-size:13px;border-radius:10px}
+  .btn:disabled{opacity:.5;cursor:default}
+  .row-actions{display:flex;gap:6px;padding:0 12px 12px;flex-wrap:wrap}
+  /* login */
+  .login{max-width:360px;margin:12vh auto;background:var(--panel);padding:28px;border-radius:18px}
+  .login h1{margin:0 0 18px;font-size:26px}
+  .login input{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:10px;outline:none}
+  .login .btn{width:100%;margin-top:6px}
+  .err{color:#ff6b6b;font-size:13px;min-height:18px;margin-top:8px}
+  /* modal */
+  dialog{border:0;padding:0;background:var(--panel);color:var(--text);border-radius:18px;width:min(760px,calc(100% - 24px));max-height:calc(100% - 24px)}
+  dialog::backdrop{background:rgba(0,0,0,.7)}
+  .m{display:grid;grid-template-columns:220px 1fr;gap:20px;padding:20px}
+  .m .poster{border-radius:12px}
+  .m h3{margin:0;font-size:24px;line-height:1.2}
+  .m .sub{color:var(--muted);margin:4px 0 10px}
+  .m .desc{color:#cfcfd6;font-size:14px;max-height:140px;overflow:auto}
+  .close{position:absolute;right:12px;top:10px;background:none;border:0;font-size:26px;color:var(--muted)}
+  .rev{background:var(--panel2);border-radius:12px;padding:12px;margin-top:12px}
+  .rev .who{font-weight:800}
+  .rev .who.v{color:var(--vova)} .rev .who.n{color:var(--nika)}
+  .rev .txt{white-space:pre-wrap;margin-top:6px;color:#dedee4}
+  .rev .date{color:var(--muted);font-size:12px}
+  .stars{display:flex;gap:4px;flex-wrap:wrap;margin:8px 0}
+  .stars button{width:34px;height:34px;border-radius:9px;border:1px solid var(--line);background:var(--panel);font-weight:800}
+  .stars button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  .rev textarea{width:100%;min-height:90px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px;resize:vertical;outline:none}
+  .rev input[type=date]{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px 8px;color-scheme:dark}
+  .line{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}
+  .toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--panel2);padding:10px 16px;border-radius:12px;opacity:0;transition:opacity .2s;pointer-events:none}
+  .toast.show{opacity:1}
+  @media (max-width:640px){
+    .m{grid-template-columns:1fr}
+    .m .poster{max-width:180px}
+    .grid{grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:12px}
+    .logo{font-size:17px}
+    .me .name{display:none}
+  }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<dialog id="dlg"></dialog>
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+
+const SUPABASE_URL = 'https://blzdhvctwrkamvayylrr.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_YjNiD8hhkHcfRe6wcugaHg_iPNf4ieP';
+const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const app = document.getElementById('app');
+const dlg = document.getElementById('dlg');
+let me = null, names = {}, tab = 'watched', lastSearch = [];
+
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const toast = t => { const el = document.getElementById('toast'); el.textContent = t; el.classList.add('show'); setTimeout(() => el.classList.remove('show'), 2200); };
+const cls = uid => names[uid] === 'Ника' ? 'n' : 'v';
+
+// ---------- вход ----------
+function renderLogin(){
+  app.innerHTML = `
+    <form class="login" id="lf">
+      <h1>Наше <span style="color:var(--accent)">кино</span></h1>
+      <input type="email" id="em" placeholder="Почта" autocomplete="username" required>
+      <input type="password" id="pw" placeholder="Пароль" autocomplete="current-password" required>
+      <button class="btn" type="submit">Войти</button>
+      <div class="err" id="le"></div>
+    </form>`;
+  document.getElementById('lf').onsubmit = async e => {
+    e.preventDefault();
+    const { error } = await sb.auth.signInWithPassword({ email: document.getElementById('em').value.trim(), password: document.getElementById('pw').value });
+    if (error) document.getElementById('le').textContent = 'Не получилось войти: проверь почту и пароль';
+  };
+}
+
+// ---------- каркас ----------
+function renderShell(){
+  app.innerHTML = `
+    <header><div class="wrap">
+      <div class="logo">Наше <span>кино</span></div>
+      <nav>
+        <button data-t="watched">Смотрели</button>
+        <button data-t="want">Хочу посмотреть</button>
+        <button data-t="search">Поиск</button>
+      </nav>
+      <div class="me"><span class="name">${esc(names[me.id] || me.email)}</span><button id="out">выйти</button></div>
+    </div></header>
+    <main class="wrap" id="view"></main>`;
+  app.querySelectorAll('nav button').forEach(b => b.onclick = () => go(b.dataset.t));
+  document.getElementById('out').onclick = () => sb.auth.signOut();
+  go(tab);
+}
+function go(t){
+  tab = t;
+  app.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.t === t));
+  ({ watched: viewWatched, want: viewWant, search: viewSearch })[t]();
+}
+const view = () => document.getElementById('view');
+
+function posterCard(m, badges = '', actions = ''){
+  return `<div class="card" data-id="${m.kp_id}">
+    <div class="poster" style="background-image:url('${esc(m.poster_url || '')}')"><div class="badges">${badges}</div></div>
+    <div class="info"><div class="t">${esc(m.title)}</div><div class="y">${esc(m.year || '')}</div></div>
+    ${actions}
+  </div>`;
+}
+
+// ---------- Смотрели ----------
+async function viewWatched(){
+  view().innerHTML = '<h2>Смотрели</h2><div class="empty">Загружаю…</div>';
+  const { data, error } = await sb.from('movies').select('*, reviews(*)').order('created_at', { ascending: false });
+  if (error) return view().innerHTML = `<div class="empty">Ошибка: ${esc(error.message)}</div>`;
+  const list = data.filter(m => m.reviews.length)
+    .sort((a, b) => maxDate(b) - maxDate(a));
+  if (!list.length) return view().innerHTML = '<h2>Смотрели</h2><div class="empty">Пока пусто. Найди фильм во вкладке «Поиск».</div>';
+  view().innerHTML = '<h2>Смотрели</h2><div class="grid">' + list.map(m => posterCard(m,
+    m.reviews.filter(r => r.rating).map(r => `<span class="badge ${cls(r.user_id)}">${r.rating}</span>`).join(''))).join('') + '</div>';
+  bindCards();
+}
+const maxDate = m => Math.max(...m.reviews.map(r => new Date(r.watched_at || r.updated_at).getTime()));
+
+// ---------- Хочу посмотреть ----------
+async function viewWant(){
+  view().innerHTML = '<h2>Хочу посмотреть</h2><div class="empty">Загружаю…</div>';
+  const { data, error } = await sb.from('watchlist').select('*, movies(*)').order('added_at', { ascending: false });
+  if (error) return view().innerHTML = `<div class="empty">Ошибка: ${esc(error.message)}</div>`;
+  if (!data.length) return view().innerHTML = '<h2>Хочу посмотреть</h2><div class="empty">Список пуст. Добавляй фильмы из поиска.</div>';
+  view().innerHTML = '<h2>Хочу посмотреть</h2><div class="grid">' + data.map(w => posterCard(w.movies,
+    `<span class="badge ${cls(w.added_by)}">${esc(names[w.added_by] || '')}</span>`)).join('') + '</div>';
+  bindCards();
+}
+
+// ---------- Поиск ----------
+function viewSearch(){
+  view().innerHTML = `
+    <h2>Поиск</h2>
+    <form class="search" id="sf"><input id="q" placeholder="Название фильма или сериала" autofocus><button class="btn">Найти</button></form>
+    <div id="res"></div>`;
+  document.getElementById('sf').onsubmit = async e => {
+    e.preventDefault();
+    const q = document.getElementById('q').value.trim();
+    if (!q) return;
+    const res = document.getElementById('res');
+    res.innerHTML = '<div class="empty">Ищу на Кинопоиске…</div>';
+    const { data, error } = await sb.functions.invoke('kp', { body: { action: 'search', query: q } });
+    if (error || data?.error) return res.innerHTML = `<div class="empty">Поиск не сработал: ${esc(error?.message || data.error)}</div>`;
+    lastSearch = (data.docs || []).map(fromKp);
+    if (!lastSearch.length) return res.innerHTML = '<div class="empty">Ничего не нашлось</div>';
+    res.innerHTML = '<div class="grid">' + lastSearch.map(m => posterCard(m, '',
+      `<div class="row-actions"><button class="btn small" data-act="seen">Смотрели</button><button class="btn small ghost" data-act="want">Хочу</button></div>`)).join('') + '</div>';
+    res.querySelectorAll('.card').forEach(c => {
+      const m = lastSearch.find(x => x.kp_id == c.dataset.id);
+      c.onclick = e => {
+        const act = e.target.dataset?.act;
+        if (act === 'want') { e.stopPropagation(); addWant(m); }
+        else openMovie(m, { fresh: true });
+      };
+    });
+  };
+}
+function fromKp(d){
+  return {
+    kp_id: d.id,
+    title: d.name || d.alternativeName || d.enName || 'Без названия',
+    title_orig: d.alternativeName || d.enName || null,
+    year: d.year || null,
+    poster_url: d.poster?.previewUrl || d.poster?.url || null,
+    genres: (d.genres || []).map(g => g.name),
+    description: d.description || d.shortDescription || null,
+    kp_rating: d.rating?.kp || null,
+    raw: d,
+  };
+}
+async function saveMovie(m){
+  const { reviews, ...row } = m;
+  const { error } = await sb.from('movies').upsert(row);
+  if (error) throw error;
+}
+async function addWant(m){
+  try {
+    await saveMovie(m);
+    const { error } = await sb.from('watchlist').upsert({ kp_id: m.kp_id }, { onConflict: 'kp_id', ignoreDuplicates: true });
+    if (error) throw error;
+    toast('Добавил в «Хочу посмотреть»');
+  } catch (e) { toast('Ошибка: ' + e.message); }
+}
+
+// ---------- карточка фильма ----------
+function bindCards(){
+  view().querySelectorAll('.card').forEach(c => c.onclick = async () => {
+    const { data } = await sb.from('movies').select('*, reviews(*)').eq('kp_id', c.dataset.id).single();
+    if (data) openMovie(data);
+  });
+}
+async function openMovie(m, { fresh = false } = {}){
+  let reviews = m.reviews;
+  if (!reviews) { const { data } = await sb.from('reviews').select('*').eq('kp_id', m.kp_id); reviews = data || []; }
+  const { data: w } = await sb.from('watchlist').select('kp_id').eq('kp_id', m.kp_id).maybeSingle();
+  const mine = reviews.find(r => r.user_id === me.id);
+  const other = reviews.filter(r => r.user_id !== me.id);
+  let rating = mine?.rating || null;
+
+  dlg.innerHTML = `
+    <button class="close" aria-label="Закрыть">×</button>
+    <div class="m">
+      <div><div class="poster" style="background-image:url('${esc(m.poster_url || '')}')"></div></div>
+      <div>
+        <h3>${esc(m.title)}</h3>
+        <div class="sub">${[m.title_orig, m.year, (m.genres || []).join(', '), m.kp_rating ? 'КП ' + Number(m.kp_rating).toFixed(1) : ''].filter(Boolean).map(esc).join(' · ')}</div>
+        <div class="desc">${esc(m.description || '')}</div>
+        <div class="line">
+          <button class="btn small ghost" id="wantBtn">${w ? 'Убрать из «Хочу»' : 'В «Хочу посмотреть»'}</button>
+          <a class="btn small ghost" style="text-decoration:none" href="https://www.kinopoisk.ru/film/${m.kp_id}/" target="_blank" rel="noopener">На Кинопоиске</a>
+        </div>
+
+        <div class="rev">
+          <div class="who ${cls(me.id)}">${esc(names[me.id] || 'Я')} — моя оценка</div>
+          <div class="stars" id="stars">${[1,2,3,4,5,6,7,8,9,10].map(n => `<button data-n="${n}" class="${rating === n ? 'on' : ''}">${n}</button>`).join('')}</div>
+          <textarea id="txt" placeholder="Рецензия (можно пусто)">${esc(mine?.review || '')}</textarea>
+          <div class="line">
+            <label class="date">Смотрели <input type="date" id="dt" value="${esc(mine?.watched_at || new Date().toISOString().slice(0,10))}"></label>
+            <button class="btn small" id="save">Сохранить</button>
+            ${mine ? '<button class="btn small ghost" id="del">Удалить мою оценку</button>' : ''}
+          </div>
+        </div>
+
+        ${other.map(r => `
+          <div class="rev">
+            <div class="who ${cls(r.user_id)}">${esc(names[r.user_id] || '')} ${r.rating ? '— ' + r.rating + '/10' : ''}</div>
+            <div class="date">${esc(r.watched_at || '')}</div>
+            ${r.review ? `<div class="txt">${esc(r.review)}</div>` : ''}
+          </div>`).join('') || `<div class="rev"><div class="date">${esc(Object.entries(names).find(([id]) => id !== me.id)?.[1] || 'Второй')}: пока без оценки</div></div>`}
+      </div>
+    </div>`;
+  dlg.showModal();
+  dlg.querySelector('.close').onclick = () => dlg.close();
+  dlg.querySelectorAll('#stars button').forEach(b => b.onclick = () => {
+    rating = rating === +b.dataset.n ? null : +b.dataset.n;
+    dlg.querySelectorAll('#stars button').forEach(x => x.classList.toggle('on', +x.dataset.n === rating));
+  });
+  dlg.querySelector('#wantBtn').onclick = async () => {
+    if (w) await sb.from('watchlist').delete().eq('kp_id', m.kp_id);
+    else await addWant(m);
+    dlg.close(); refresh();
+  };
+  dlg.querySelector('#save').onclick = async e => {
+    e.target.disabled = true;
+    try {
+      if (fresh) await saveMovie(m);
+      const { error } = await sb.from('reviews').upsert({
+        user_id: me.id, kp_id: m.kp_id, rating,
+        review: dlg.querySelector('#txt').value.trim() || null,
+        watched_at: dlg.querySelector('#dt').value || null,
+        updated_at: new Date().toISOString(),
+      });
+      if (error) throw error;
+      await sb.from('watchlist').delete().eq('kp_id', m.kp_id); // посмотрели — убираем из «Хочу»
+      toast('Сохранил'); dlg.close(); refresh();
+    } catch (err) { toast('Ошибка: ' + err.message); e.target.disabled = false; }
+  };
+  const del = dlg.querySelector('#del');
+  if (del) del.onclick = async () => {
+    await sb.from('reviews').delete().eq('kp_id', m.kp_id).eq('user_id', me.id);
+    toast('Удалил'); dlg.close(); refresh();
+  };
+}
+function refresh(){ if (tab !== 'search') go(tab); }
+dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
+
+// ---------- старт ----------
+async function start(session){
+  if (!session) { me = null; return renderLogin(); }
+  if (me?.id === session.user.id) return;
+  me = session.user;
+  const { data } = await sb.from('profiles').select('*');
+  names = Object.fromEntries((data || []).map(p => [p.id, p.name]));
+  renderShell();
+}
+sb.auth.onAuthStateChange((_e, session) => { setTimeout(() => start(session), 0); });
+</script>
+</body>
+</html>
