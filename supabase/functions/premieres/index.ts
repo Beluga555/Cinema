@@ -1,4 +1,4 @@
-// Афиша: премьеры фильмов по миру за ближайшие ~3 месяца с датой выхода в России.
+// Афиша: премьеры фильмов в мире (последние ~5 месяцев и ~3 месяца вперёд) с датой выхода в России.
 // Берёт данные из того же Кинопоиск-API, что и функция kp (ключ KP_TOKEN из секретов проекта).
 // Пускает только вошедших в «Наше кино» (проверяет токен пользователя, как kp).
 // Отдельная функция, чтобы не трогать рабочую kp.
@@ -27,27 +27,46 @@ Deno.serve(async (req) => {
   const token = Deno.env.get("KP_TOKEN");
   if (!token) return json({ error: "Нет ключа Кинопоиска" }, 500);
 
-  // окно: две недели назад (фильм мог уже выйти в мире) и 100 дней вперёд
-  const from = new Date(Date.now() - 14 * 864e5), to = new Date(Date.now() + 100 * 864e5);
-  const p = new URLSearchParams();
-  p.set("premiere.world", `${ddmmyyyy(from)}-${ddmmyyyy(to)}`);
-  p.set("type", "movie");
-  p.set("sortField", "votes.await");
-  p.set("sortType", "-1");
-  p.set("limit", "80");
-  // шум отсекаем: только то, что ждут хотя бы 500 человек на Кинопоиске, без короткого метра, документалок и концертов
-  p.set("votes.await", "500-100000000");
-  for (const g of ["!короткометражка", "!документальный", "!концерт", "!реальное ТВ", "!ток-шоу"]) p.append("genres.name", g);
-  p.append("notNullFields", "poster.url");
-  for (const f of ["id", "name", "enName", "alternativeName", "year", "genres", "poster", "premiere", "rating", "votes", "shortDescription", "countries"])
-    p.append("selectFields", f);
-
-  const r = await fetch(`${API}?${p}`, { headers: { "X-API-KEY": token } });
-  if (!r.ok) return json({ error: `Кинопоиск ответил ${r.status}`, detail: (await r.text()).slice(0, 300) }, 502);
-  const data = await r.json();
+  // Два запроса к Кинопоиску:
+  // 1) скоро: премьера в мире от сегодня до +100 дней, отбор по «ждут» (≥500);
+  // 2) уже идёт в мире: премьера за последние 150 дней (сюда попадают фестивальные премьеры
+  //    вроде «Прайм-тайма», которые потом выходят в прокат), отбор по оценкам IMDb (≥3000).
+  const now = Date.now(), day = 864e5;
+  const NOISE = ["!короткометражка", "!документальный", "!концерт", "!реальное ТВ", "!ток-шоу", "!церемония"];
+  const FIELDS = ["id", "name", "enName", "alternativeName", "year", "genres", "poster", "premiere", "rating", "votes", "shortDescription", "countries"];
+  const query = (from: Date, to: Date, sortField: string, minField: string, min: number) => {
+    const p = new URLSearchParams();
+    p.set("premiere.world", `${ddmmyyyy(from)}-${ddmmyyyy(to)}`);
+    p.set("type", "movie");
+    p.set("sortField", sortField);
+    p.set("sortType", "-1");
+    p.set("limit", "60");
+    p.set(minField, `${min}-100000000`);
+    for (const g of NOISE) p.append("genres.name", g);
+    p.append("notNullFields", "poster.url");
+    for (const f of FIELDS) p.append("selectFields", f);
+    return p;
+  };
+  const from = new Date(now - 150 * day), to = new Date(now + 100 * day);
+  const ask = async (p: URLSearchParams) => {
+    const r = await fetch(`${API}?${p}`, { headers: { "X-API-KEY": token } });
+    if (!r.ok) throw new Error(`Кинопоиск ответил ${r.status}: ${(await r.text()).slice(0, 200)}`);
+    return (await r.json()).docs ?? [];
+  };
+  let soon: any[], recent: any[];
+  try {
+    [soon, recent] = await Promise.all([
+      ask(query(new Date(now), to, "votes.await", "votes.await", 500)),
+      ask(query(from, new Date(now), "votes.imdb", "votes.imdb", 3000)),
+    ]);
+  } catch (e) {
+    return json({ error: (e as Error).message }, 502);
+  }
+  const seenIds = new Set<number>();
+  const raw = [...soon, ...recent].filter((d: any) => !seenIds.has(d.id) && seenIds.add(d.id));
 
   // отдаём только нужное сайту
-  const docs = (data.docs ?? []).map((d: any) => ({
+  const docs = raw.map((d: any) => ({
     id: d.id,
     t: d.name || d.alternativeName || d.enName,
     o: d.alternativeName || d.enName || "",
@@ -58,7 +77,8 @@ Deno.serve(async (req) => {
     russia: d.premiere?.russia ?? null,
     kp: d.rating?.kp || null,
     imdb: d.rating?.imdb || null,
-    awaiting: d.votes?.await ?? null,
+    awaiting: d.votes?.await || null,
+    imdbVotes: d.votes?.imdb || null,
     desc: d.shortDescription ?? null,
   }));
   docs.sort((a: any, b: any) => String(a.world).localeCompare(String(b.world)));

@@ -376,9 +376,24 @@ dialog.lt::backdrop{background:transparent}
 .af-st.ok{color:#7fbf86}.af-st.wait{color:#e9b45a}.af-st.no{color:#8f7c6e;font-weight:400}
 .af-want{margin-top:4px;background:transparent;color:var(--gold2);border:2px solid var(--gold);border-radius:8px;padding:6px 10px;font:14px 'Kelly Slab';letter-spacing:.06em}
 .af-want.on{background:var(--red2);color:var(--bone);box-shadow:0 3px 0 #5a0d11;cursor:default}
-.af-note{color:var(--muted);font-size:13px;margin:-8px 0 18px}
+.af-note{color:var(--muted);font-size:13px;margin:-8px 0 18px;max-width:72ch}
+.af-sub{margin:30px 0 14px}.af-sub h2{font-size:26px}
 @media (max-width:520px){.af-wall{padding:24px 12px 20px}.af-grid{grid-template-columns:1fr 1fr;gap:28px 14px}.af-row{flex-direction:column;gap:0}.af-st{text-align:left}.af-plate{padding:9px 9px 10px}}
 @media (prefers-reduced-motion:no-preference){.af-poster{transition:transform .25s}.af-slot:hover .af-poster{transform:rotate(0deg) translateY(-4px) scale(1.02)}}
+
+/* ---------- техосмотр ---------- */
+.ck{max-width:760px;margin:0 auto;background:linear-gradient(180deg,#2b1d17,#1d1410);border:2px solid var(--gold);border-radius:10px;padding:20px 22px 22px;box-shadow:0 20px 40px rgba(0,0,0,.5)}
+.ck h3{margin:0 0 4px;font:28px/1.1 'Yeseva One',serif;color:var(--gold2)}
+.ck p.sub{margin:0 0 16px;color:var(--muted);font-size:14px}
+.ck-list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.ck-item{display:grid;grid-template-columns:28px 1fr;gap:10px;align-items:start;padding:10px 12px;border-radius:6px;background:rgba(0,0,0,.25);border-left:4px solid #5a4636}
+.ck-item.ok{border-left-color:#5fae6b}.ck-item.warn{border-left-color:#e0a94a}.ck-item.bad{border-left-color:var(--red2)}
+.ck-ic{font:18px/1.2 'Kelly Slab';text-align:center}
+.ck-name{font:16px 'Kelly Slab';letter-spacing:.04em;color:var(--bone)}
+.ck-det{font-size:13px;color:var(--muted);margin-top:2px;overflow-wrap:anywhere}
+.ck-det ul{margin:4px 0 0;padding-left:18px}
+.ck-sum{margin:16px 0 0;font:17px 'Kelly Slab';letter-spacing:.06em;color:var(--paper2)}
+.ck .btn{margin-top:14px}
 </style>
 </head>
 <body>
@@ -420,6 +435,7 @@ dialog.lt::backdrop{background:transparent}
   <button class="plank" data-t="want">Хочу посмотреть<small id="cH"></small></button>
   <button class="plank" data-t="afisha">Афиша</button>
   <button class="plank" data-t="kassa">Касса</button>
+  <button class="plank" data-t="check" style="font-size:14px;opacity:.75">техосмотр</button>
   <button class="plank" id="out" style="font-size:14px;opacity:.75">выйти</button>
 </nav>
 
@@ -654,19 +670,19 @@ const waitFmt = n => n >= 1000 ? Math.round(n/1000)+' тыс.' : String(n);
 async function loadAfisha(force){
   if (afisha && !force) return;
   try {
-    const c = JSON.parse(sessionStorage.getItem('afisha') || 'null');
+    const c = JSON.parse(sessionStorage.getItem('afisha2') || 'null');
     if (!force && c && Date.now() - c.at < 6*3600e3){ afisha = c.docs; return; }
   } catch(e){}
   const { data, error } = await sb.functions.invoke('premieres', { body:{} });
   if (error || data?.error) throw new Error(error?.message || data.error);
   afisha = data.docs || [];
-  try { sessionStorage.setItem('afisha', JSON.stringify({ at:Date.now(), docs:afisha })); } catch(e){}
+  try { sessionStorage.setItem('afisha2', JSON.stringify({ at:Date.now(), docs:afisha })); } catch(e){}
 }
 const afMovie = d => films.find(f => f.id === d.id) || { id:d.id, t:d.t, o:d.o, y:d.y, g:d.g, poster:d.poster, desc:d.desc, kp:d.kp, fresh:true };
 const AF_F = [
   ['all','Все', () => true],
-  ['ru','Скоро в России', d => !!d.russia],
-  ['noru','Пока не в России', d => !d.russia],
+  ['ru','Есть дата в России', d => !!d.russia],
+  ['noru','Нет даты в России', d => !d.russia],
   ['want','Хочу', d => films.find(f => f.id === d.id)?.want]
 ];
 function afPosterHTML(d, i){
@@ -690,7 +706,9 @@ function afPosterHTML(d, i){
     ${m?.want ? '<div class="af-seal" aria-hidden="true">Хочу</div>' : ''}
     <div class="af-plate">
       <div class="af-row"><span class="k">Россия</span><span class="af-st ${ruCls}">${ruTxt}</span></div>
-      <div class="af-row"><span class="k">Ждут</span><span class="af-st wait">${d.awaiting ? waitFmt(d.awaiting) : '—'}</span></div>
+      ${world && world <= today
+        ? `<div class="af-row"><span class="k">Оценки</span><span class="af-st wait">${[d.kp ? 'КП ' + Number(d.kp).toFixed(1) : '', d.imdb ? 'IMDb ' + Number(d.imdb).toFixed(1) : ''].filter(Boolean).join(', ') || 'пока нет'}</span></div>`
+        : `<div class="af-row"><span class="k">Ждут</span><span class="af-st wait">${d.awaiting ? waitFmt(d.awaiting) : '—'}</span></div>`}
       ${m && seen(m) ? '<button class="af-want on" disabled>Уже смотрели</button>'
         : m?.want ? '<button class="af-want on" disabled>В списке «Хочу»</button>'
         : '<button class="af-want" data-act="want">Хочу посмотреть</button>'}
@@ -705,11 +723,15 @@ async function showAfisha(){
     if (tab !== 'afisha') return;
   }
   const fn = AF_F.find(x => x[0] === afFilter)[2];
-  const list = afisha.filter(fn);
-  view.innerHTML = `<div class="head"><h2>Скоро на <em>экране</em></h2></div>
-    <p class="af-note">Премьеры в мире за две недели назад и три месяца вперёд. Под плакатом видно, выходит ли фильм в России. Сеансы «Синема 5» и VIP-зала «М-Синемы» добавим следующим шагом.</p>
+  const list = afisha.filter(fn), today = todayISO();
+  const soon = list.filter(d => !d.world || dayOf(d.world) > today);
+  const out = list.filter(d => d.world && dayOf(d.world) <= today).sort((a,b) => b.world.localeCompare(a.world));
+  const wall = (arr, label) => arr.length ? `<div class="head af-sub"><h2>${label}</h2><span class="fcount">${arr.length}</span></div>
+    <section class="af-wall" aria-label="${label}"><div class="af-grid">${arr.map(d => afPosterHTML(d, afisha.indexOf(d))).join('')}</div></section>` : '';
+  view.innerHTML = `<div class="head"><h2>Афиша <em>на двоих</em></h2></div>
+    <p class="af-note">Премьеры в мире: что выйдет в ближайшие три месяца и что уже идёт за границей последние пять. Под плакатом видно, выходит ли фильм в России. Сеансы «Синема 5» и VIP-зала «М-Синемы» добавим следующим шагом.</p>
     <div class="filters"><div class="frow"><span class="fl">Показать</span>${AF_F.map(([k,l,f]) => `<button class="chip ${afFilter===k?'on':''}" data-af="${k}">${l}<small>${afisha.filter(f).length}</small></button>`).join('')}<span class="fcount">плакатов: ${list.length}</span></div></div>
-    <section class="af-wall" aria-label="Плакаты">${list.length ? `<div class="af-grid">${list.map((d,i) => afPosterHTML(d, afisha.indexOf(d))).join('')}</div>` : '<div class="nores">Здесь пусто</div>'}</section>`;
+    ${list.length ? wall(soon, 'Скоро на экране') + wall(out, 'Уже идёт в мире') : '<div class="nores">Здесь пусто</div>'}`;
   view.querySelectorAll('[data-af]').forEach(b => b.onclick = () => { afFilter = b.dataset.af; showAfisha(); });
   view.querySelectorAll('.af-slot').forEach(el => {
     const d = afisha.find(x => x.id == el.dataset.id);
@@ -717,6 +739,97 @@ async function showAfisha(){
     const w = el.querySelector('[data-act="want"]');
     if (w) w.onclick = async () => { w.disabled = true; await addWant(afMovie(d)); if (tab === 'afisha') showAfisha(); };
   });
+}
+// ---------- техосмотр: проверка всего сайта по кнопке ----------
+// Каждая проверка возвращает {s:'ok'|'warn'|'bad', t:'что видно', list:[подробности]}.
+// Тратит 4 запроса к Кинопоиску из дневного лимита, поэтому не запускается сам.
+const CK_ICON = { ok:'✓', warn:'!', bad:'✕', run:'…' };
+const ckImg = url => new Promise(res => { const i = new Image(); const t = setTimeout(() => res(false), 8000); i.onload = () => { clearTimeout(t); res(i.naturalWidth > 1); }; i.onerror = () => { clearTimeout(t); res(false); }; i.src = url; });
+const CHECKS = [
+  ['База данных', async () => {
+    const t = await Promise.all(['profiles','movies','watchlist','reviews'].map(async n => [n, await sb.from(n).select('*', { count:'exact', head:true })]));
+    const errs = t.filter(([,r]) => r.error);
+    if (errs.length) return { s:'bad', t:'Не читаются таблицы: ' + errs.map(([n,r]) => `${n} (${r.error.message})`).join(', ') };
+    const RU = { profiles:'профили', movies:'фильмы', watchlist:'в «Хочу»', reviews:'оценки и рецензии' };
+    return { s:'ok', t: t.map(([n,r]) => `${RU[n]}: ${r.count}`).join(', ') };
+  }],
+  ['Касса: поиск на Кинопоиске', async () => {
+    const { data, error } = await sb.functions.invoke('kp', { body:{ action:'search', query:'Матрица' } });
+    if (error || data?.error) return { s:'bad', t:'Поиск не отвечает: ' + (error?.message || data.error) };
+    const n = (data.docs || []).length;
+    return n ? { s:'ok', t:`по запросу «Матрица» нашлось ${n}` } : { s:'warn', t:'Кинопоиск ответил, но пусто' };
+  }],
+  ['Карточка фильма с Кинопоиска', async () => {
+    const { data, error } = await sb.functions.invoke('kp', { body:{ action:'movie', id:301 } });
+    if (error || data?.error) return { s:'bad', t:'Карточка не грузится: ' + (error?.message || data.error) };
+    return data?.name ? { s:'ok', t:`пришла карточка «${data.name}»` } : { s:'warn', t:'ответ без названия' };
+  }],
+  ['Афиша', async () => {
+    const { data, error } = await sb.functions.invoke('premieres', { body:{} });
+    if (error || data?.error) return { s:'bad', t:'Афиша не грузится: ' + (error?.message || data.error) };
+    const docs = data.docs || [], today = todayISO();
+    afisha = docs; try { sessionStorage.setItem('afisha2', JSON.stringify({ at:Date.now(), docs })); } catch(e){}
+    const soon = docs.filter(d => d.world && dayOf(d.world) > today).length;
+    const noPoster = docs.filter(d => !d.poster), ru = docs.filter(d => d.russia).length;
+    const list = [];
+    if (noPoster.length) list.push('без постера: ' + noPoster.map(d => d.t).join(', '));
+    if (!soon) list.push('нет ни одной будущей премьеры, проверь фильтр «ждут»');
+    const s = !docs.length ? 'bad' : (!soon || noPoster.length > 3) ? 'warn' : 'ok';
+    return { s, t:`плакатов ${docs.length}: скоро ${soon}, уже идут ${docs.length - soon}, с датой в России ${ru}`, list };
+  }],
+  ['Постеры грузятся', async () => {
+    const urls = [...films.filter(seen).slice(0, 12).map(m => [m.t, m.poster || P(m.id)]), ...(afisha || []).slice(0, 8).map(d => [d.t, d.poster || P(d.id)])];
+    const res = await Promise.all(urls.map(async ([t,u]) => [t, await ckImg(u)]));
+    const bad = res.filter(([,ok]) => !ok).map(([t]) => t);
+    return { s: !bad.length ? 'ok' : bad.length > res.length/2 ? 'bad' : 'warn', t:`проверено ${res.length}, не загрузилось ${bad.length}`, list: bad.length ? ['не грузятся: ' + bad.join(', ')] : [] };
+  }],
+  ['Порядок в данных', async () => {
+    const list = [], today = todayISO();
+    const noGenre = films.filter(f => !f.g.length && !f.desc);
+    if (noGenre.length) list.push(`без жанров и описания ${noGenre.length}: ${noGenre.slice(0,8).map(f => f.t).join(', ')}${noGenre.length > 8 ? '…' : ''} (дотянутся сами при открытии сайта)`);
+    const badRate = films.filter(f => [f.v, f.n].some(x => x != null && (x < 1 || x > 10)));
+    if (badRate.length) list.push('оценка вне 1–10: ' + badRate.map(f => f.t).join(', '));
+    const future = films.filter(f => [f.vd, f.nd].some(d => d && d > today));
+    if (future.length) list.push('дата просмотра из будущего: ' + future.map(f => f.t).join(', '));
+    const noDate = films.filter(f => (f.vs && !f.vd) || (f.ns && !f.nd));
+    if (noDate.length) list.push(`смотрели без даты ${noDate.length}: ${noDate.slice(0,8).map(f => f.t).join(', ')}${noDate.length > 8 ? '…' : ''} (на билете не будет даты, так и задумано)`);
+    const wantSeen = films.filter(f => f.want && seen(f));
+    if (wantSeen.length) list.push('висят в «Хочу», хотя уже смотрели: ' + wantSeen.map(f => f.t).join(', '));
+    const hard = badRate.length || future.length;
+    return { s: hard ? 'warn' : 'ok', t: list.length ? 'есть мелочи, ничего не сломано' : `всё чисто, фильмов в базе ${films.length}`, list };
+  }],
+  ['Пинг базы (раз в день)', async () => {
+    try {
+      const r = await fetch('https://api.github.com/repos/Beluga555/cinema/actions/workflows/keep-awake.yml/runs?per_page=1');
+      const run = (await r.json()).workflow_runs?.[0];
+      if (!run) return { s:'warn', t:'запусков пока не видно' };
+      const ago = Math.round((Date.now() - new Date(run.created_at)) / 36e5);
+      const ok = run.conclusion === 'success';
+      return { s: ok && ago < 30 ? 'ok' : ok ? 'warn' : 'bad', t: `последний запуск ${ago} ч назад: ${ok ? 'успешно' : (run.conclusion || run.status)}` };
+    } catch(e){ return { s:'warn', t:'GitHub не ответил: ' + e.message }; }
+  }]
+];
+function showCheck(){
+  view.innerHTML = `<div class="ck"><h3>Техосмотр</h3>
+    <p class="sub">Проверяет базу, Кассу, Афишу, постеры и порядок в данных. Тратит 4 запроса к Кинопоиску из дневного лимита, поэтому запускается по кнопке.</p>
+    <ul class="ck-list" id="ckl">${CHECKS.map(([n],i) => `<li class="ck-item" id="ck${i}"><span class="ck-ic">○</span><div><div class="ck-name">${n}</div><div class="ck-det">ещё не проверяли</div></div></li>`).join('')}</ul>
+    <div class="ck-sum" id="cks"></div><button class="btn" id="ckgo">Запустить проверку</button></div>`;
+  document.getElementById('ckgo').onclick = runChecks;
+}
+async function runChecks(){
+  const btn = document.getElementById('ckgo'); btn.disabled = true; btn.textContent = 'Проверяем…';
+  const tally = { ok:0, warn:0, bad:0 };
+  for (let i = 0; i < CHECKS.length; i++){
+    const li = document.getElementById('ck' + i); if (!li) return;
+    li.className = 'ck-item'; li.querySelector('.ck-ic').textContent = CK_ICON.run; li.querySelector('.ck-det').textContent = 'проверяем…';
+    let r; try { r = await CHECKS[i][1](); } catch(e){ r = { s:'bad', t:'проверка упала: ' + e.message }; }
+    if (!document.getElementById('ck' + i)) return;
+    tally[r.s]++;
+    li.className = 'ck-item ' + r.s; li.querySelector('.ck-ic').textContent = CK_ICON[r.s];
+    li.querySelector('.ck-det').innerHTML = esc(r.t) + (r.list?.length ? '<ul>' + r.list.map(x => `<li>${esc(x)}</li>`).join('') + '</ul>' : '');
+  }
+  document.getElementById('cks').textContent = tally.bad ? `Сломано: ${tally.bad}. Предупреждений: ${tally.warn}.` : tally.warn ? `Работает. Мелочей на заметку: ${tally.warn}.` : 'Всё работает.';
+  btn.disabled = false; btn.textContent = 'Проверить ещё раз';
 }
 function renderLogin(){
   nav.style.display = 'none';
@@ -729,7 +842,7 @@ function renderLogin(){
     if (error) document.getElementById('le').textContent = 'Контролёр не пустил: проверь почту и пароль';
   };
 }
-function render(){ ({watched:showWatched, want:showWant, afisha:showAfisha, kassa:showKassa})[tab](); }
+function render(){ ({watched:showWatched, want:showWant, afisha:showAfisha, kassa:showKassa, check:showCheck})[tab](); }
 function bindCards(list){ view.querySelectorAll('.grid .ticket').forEach(t => t.onclick = () => openCard(list.find(m => m.id == t.dataset.id))); }
 
 // ---------- карточка ----------

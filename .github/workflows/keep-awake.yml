@@ -16,3 +16,7 @@ jobs:
             -H "apikey: sb_publishable_YjNiD8hhkHcfRe6wcugaHg_iPNf4ieP")
           echo "Ответ базы: $code"
           [ "$code" -lt 500 ] || exit 1
+      - name: Сайт открывается
+        run: |
+          html=$(curl -s -L "https://beluga555.github.io/Cinema/")
+          echo "$html" | grep -q "Наше кино" && echo "Сайт на месте" || { echo "Сайт не открылся или пустой"; exit 1; }
