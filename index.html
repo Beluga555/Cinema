@@ -337,6 +337,48 @@ dialog.lt::backdrop{background:transparent}
   .ach.torn2 .bigt .t-stub{transform:translate(6px,16px) rotate(8deg)}
   .bigt .poster{width:70px}
 }
+
+/* ---------- афиша: стена с плакатами ---------- */
+.af-wall{position:relative;padding:34px 22px 30px;border-radius:8px;border:3px solid #4a2e20;
+  background:linear-gradient(180deg,rgba(255,200,120,.10),transparent 35%),repeating-linear-gradient(90deg,rgba(0,0,0,.35) 0 2px,transparent 2px 120px),repeating-linear-gradient(90deg,#33201a 0 60px,#2d1c16 60px 120px);
+  box-shadow:inset 0 0 60px rgba(0,0,0,.7),0 20px 40px rgba(0,0,0,.5)}
+.af-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,230px),1fr));gap:40px 28px}
+.af-slot{position:relative;display:flex;flex-direction:column;align-items:center;gap:14px;min-width:0}
+.af-poster{position:relative;width:100%;aspect-ratio:3/5;container-type:inline-size;overflow:hidden;cursor:pointer;border:0;padding:0;font:inherit;
+  color:var(--pi);background:var(--pb);transform:rotate(var(--r,0deg));box-shadow:0 14px 26px rgba(0,0,0,.6),inset 0 0 40px rgba(60,30,10,.35)}
+.af-poster:focus-visible{outline:3px solid var(--gold2);outline-offset:4px}
+.af-poster::before{content:"";position:absolute;inset:0;pointer-events:none;z-index:4;mix-blend-mode:multiply;
+  background:radial-gradient(70px 50px at 82% 92%,rgba(90,50,20,.30),transparent 70%),radial-gradient(90px 60px at 12% 6%,rgba(90,50,20,.22),transparent 70%)}
+.af-poster::after{content:"";position:absolute;inset:3.5%;border:2px solid var(--pf);outline:1px solid var(--pf);outline-offset:-6px;pointer-events:none;z-index:3}
+.af-tape{position:absolute;width:28%;height:6%;background:rgba(238,224,193,.55);z-index:5;box-shadow:0 1px 2px rgba(0,0,0,.3)}
+.af-tape.l{left:-6%;top:1.5%;transform:rotate(-38deg)} .af-tape.r{right:-6%;top:1.5%;transform:rotate(38deg)}
+.af-rays{position:absolute;left:50%;top:38%;width:170%;aspect-ratio:1;transform:translate(-50%,-50%);z-index:0;
+  background:repeating-conic-gradient(var(--pr) 0 9deg,transparent 9deg 18deg);-webkit-mask:radial-gradient(circle,#000 18%,transparent 62%);mask:radial-gradient(circle,#000 18%,transparent 62%);opacity:.55}
+.af-in{position:relative;z-index:2;height:100%;display:flex;flex-direction:column;align-items:center;text-align:center;padding:9% 9% 7%}
+.af-top{font:6cqw/1 'Kelly Slab';letter-spacing:.2em;text-transform:uppercase}
+.af-pic{flex:none;width:68%;aspect-ratio:2/3;margin:5% 0 4%;background:#1a1210 center/cover no-repeat;box-shadow:0 0 0 3px var(--pf),0 0 0 6px var(--pb),0 0 0 7px var(--pf),0 8px 16px rgba(0,0,0,.45);filter:sepia(.12) contrast(1.03)}
+.af-title{flex:none;font:8.4cqw/1.08 'Yeseva One',serif;overflow-wrap:anywhere;text-wrap:balance;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;padding-bottom:.08em;margin:auto 0 0}
+.af-poster.horror .af-title{font-family:'Rubik Wet Paint',cursive;font-size:8cqw}
+.af-genre{flex:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;font:5.2cqw/1.2 'Kelly Slab';letter-spacing:.12em;text-transform:uppercase;margin:3% 0 5%;opacity:.85}
+.af-ribbon{flex:none;align-self:stretch;margin:0 -4%;padding:4% 2% 3.4%;background:var(--pf);color:var(--pb);font:7cqw/1 'Kelly Slab';letter-spacing:.1em;text-transform:uppercase;clip-path:polygon(0 0,100% 0,96% 50%,100% 100%,0 100%,4% 50%)}
+.af-ribbon b{font-weight:400;font-family:'Yeseva One',serif;letter-spacing:.04em}
+.af-slap{position:absolute;z-index:6;left:-12%;right:-12%;top:40%;padding:3.2% 0 2.6%;text-align:center;transform:rotate(-14deg);font:7.4cqw/1 'Kelly Slab';letter-spacing:.16em;text-transform:uppercase;box-shadow:0 4px 8px rgba(0,0,0,.45)}
+.af-slap.go{background:var(--gold2);color:#3a0709;border-block:3px double #3a0709}
+.af-slap.no{background:#1a1210;color:var(--bone);border-block:3px double var(--bone);opacity:.94}
+.af-seal{position:absolute;z-index:7;right:-10px;top:-14px;width:62px;height:62px;border-radius:50%;display:grid;place-items:center;transform:rotate(-14deg);font:15px/1 'Kelly Slab';letter-spacing:.08em;text-transform:uppercase;color:var(--bone);
+  background:radial-gradient(circle at 35% 30%,#d8434a,var(--red2) 45%,#6e0f13);box-shadow:0 0 0 3px #5a0d11,0 4px 10px rgba(0,0,0,.6);outline:1.5px dashed rgba(244,235,217,.6);outline-offset:-8px;pointer-events:none}
+.af-plate{width:100%;background:linear-gradient(180deg,#2b1d17,#1d1410);border:1px solid #5a3a28;border-radius:6px;padding:10px 12px 12px;display:flex;flex-direction:column;gap:6px;position:relative}
+.af-plate::before,.af-plate::after{content:"";position:absolute;top:6px;width:5px;height:5px;border-radius:50%;background:#8a7a6a}
+.af-plate::before{left:6px}.af-plate::after{right:6px}
+.af-row{display:flex;justify-content:space-between;gap:10px;font-size:13px;line-height:1.3}
+.af-row .k{font:13px 'Kelly Slab';letter-spacing:.05em;color:var(--paper2);white-space:nowrap}
+.af-st{text-align:right;font-weight:700}
+.af-st.ok{color:#7fbf86}.af-st.wait{color:#e9b45a}.af-st.no{color:#8f7c6e;font-weight:400}
+.af-want{margin-top:4px;background:transparent;color:var(--gold2);border:2px solid var(--gold);border-radius:8px;padding:6px 10px;font:14px 'Kelly Slab';letter-spacing:.06em}
+.af-want.on{background:var(--red2);color:var(--bone);box-shadow:0 3px 0 #5a0d11;cursor:default}
+.af-note{color:var(--muted);font-size:13px;margin:-8px 0 18px}
+@media (max-width:520px){.af-wall{padding:24px 12px 20px}.af-grid{grid-template-columns:1fr 1fr;gap:28px 14px}.af-row{flex-direction:column;gap:0}.af-st{text-align:left}.af-plate{padding:9px 9px 10px}}
+@media (prefers-reduced-motion:no-preference){.af-poster{transition:transform .25s}.af-slot:hover .af-poster{transform:rotate(0deg) translateY(-4px) scale(1.02)}}
 </style>
 </head>
 <body>
@@ -376,6 +418,7 @@ dialog.lt::backdrop{background:transparent}
 <nav id="nav">
   <button class="plank on" data-t="watched">Смотрели<small id="cW"></small></button>
   <button class="plank" data-t="want">Хочу посмотреть<small id="cH"></small></button>
+  <button class="plank" data-t="afisha">Афиша</button>
   <button class="plank" data-t="kassa">Касса</button>
   <button class="plank" id="out" style="font-size:14px;opacity:.75">выйти</button>
 </nav>
@@ -590,6 +633,91 @@ async function addWant(m){
     toast('Билет отложен');
   } catch(err){ toast('Ошибка: ' + err.message); }
 }
+// ---------- афиша ----------
+// анонсы приходят из функции premieres (Кинопоиск), кэш на 6 часов, чтобы беречь лимит API
+const AF_PAL = [
+  {pb:'#8f171d',pi:'#f4ebd9',pf:'#e9c77c',pr:'rgba(233,199,124,.35)'},
+  {pb:'#eee0c1',pi:'#2b1a14',pf:'#9c1a20',pr:'rgba(156,26,32,.28)'},
+  {pb:'#16100d',pi:'#e9c77c',pf:'#c2272c',pr:'rgba(194,39,44,.35)'},
+  {pb:'#d9b56a',pi:'#3a0709',pf:'#3a0709',pr:'rgba(255,245,215,.55)'},
+  {pb:'#1e3b3d',pi:'#eee0c1',pf:'#e9c77c',pr:'rgba(233,199,124,.25)'}
+];
+const AF_TILT = [-2.2,1.6,-1,2.4,-1.8,1.1,-2.6,0.8];
+const MG = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+const MS = ['янв','фев','мар','апр','мая','июн','июл','авг','сен','окт','ноя','дек'];
+let afisha = null, afFilter = 'all', afLoading = false;
+const dayOf = iso => iso ? iso.slice(0,10) : null;
+const todayISO = () => new Date(Date.now() - new Date().getTimezoneOffset()*60000).toISOString().slice(0,10);
+const ddMon = (iso, full) => { const d = new Date(iso.slice(0,10)+'T00:00:00'); return d.getDate()+' '+(full?MG:MS)[d.getMonth()]; };
+const waitFmt = n => n >= 1000 ? Math.round(n/1000)+' тыс.' : String(n);
+
+async function loadAfisha(force){
+  if (afisha && !force) return;
+  try {
+    const c = JSON.parse(sessionStorage.getItem('afisha') || 'null');
+    if (!force && c && Date.now() - c.at < 6*3600e3){ afisha = c.docs; return; }
+  } catch(e){}
+  const { data, error } = await sb.functions.invoke('premieres', { body:{} });
+  if (error || data?.error) throw new Error(error?.message || data.error);
+  afisha = data.docs || [];
+  try { sessionStorage.setItem('afisha', JSON.stringify({ at:Date.now(), docs:afisha })); } catch(e){}
+}
+const afMovie = d => films.find(f => f.id === d.id) || { id:d.id, t:d.t, o:d.o, y:d.y, g:d.g, poster:d.poster, desc:d.desc, kp:d.kp, fresh:true };
+const AF_F = [
+  ['all','Все', () => true],
+  ['ru','Скоро в России', d => !!d.russia],
+  ['noru','Пока не в России', d => !d.russia],
+  ['want','Хочу', d => films.find(f => f.id === d.id)?.want]
+];
+function afPosterHTML(d, i){
+  const p = AF_PAL[i % AF_PAL.length], today = todayISO();
+  const world = dayOf(d.world), ru = dayOf(d.russia);
+  const top = world && world <= today ? 'Уже вышел в мире' : 'Премьера в мире';
+  const slap = ru && ru <= today ? '<div class="af-slap go">Уже в кино</div>'
+    : (!ru && world && world <= today) ? '<div class="af-slap no">Не в России</div>' : '';
+  const horror = d.g.some(x => x === 'ужасы');
+  const m = films.find(f => f.id === d.id);
+  const ruTxt = ru ? (ru <= today ? 'уже в прокате' : 'с ' + ddMon(ru)) : 'не заявлен';
+  const ruCls = ru ? 'ok' : 'no';
+  return `<article class="af-slot" data-id="${d.id}">
+    <button class="af-poster${horror?' horror':''}" style="--pb:${p.pb};--pi:${p.pi};--pf:${p.pf};--pr:${p.pr};--r:${AF_TILT[i%AF_TILT.length]}deg" aria-label="${esc(d.t)}, открыть карточку">
+      <span class="af-tape l"></span><span class="af-tape r"></span><div class="af-rays"></div>
+      <div class="af-in"><div class="af-top">${top}</div>
+        <div class="af-pic" style="background-image:url('${esc(d.poster || P(d.id))}')"></div>
+        <div class="af-title">${esc(d.t)}</div><div class="af-genre">${esc(d.g.slice(0,2).join(', '))}</div>
+        <div class="af-ribbon">${world ? `<b>${new Date(world+'T00:00:00').getDate()}</b> ${MG[new Date(world+'T00:00:00').getMonth()]}` : 'дата не объявлена'}</div></div>
+      ${slap}</button>
+    ${m?.want ? '<div class="af-seal" aria-hidden="true">Хочу</div>' : ''}
+    <div class="af-plate">
+      <div class="af-row"><span class="k">Россия</span><span class="af-st ${ruCls}">${ruTxt}</span></div>
+      <div class="af-row"><span class="k">Ждут</span><span class="af-st wait">${d.awaiting ? waitFmt(d.awaiting) : '—'}</span></div>
+      ${m && seen(m) ? '<button class="af-want on" disabled>Уже смотрели</button>'
+        : m?.want ? '<button class="af-want on" disabled>В списке «Хочу»</button>'
+        : '<button class="af-want" data-act="want">Хочу посмотреть</button>'}
+    </div></article>`;
+}
+async function showAfisha(){
+  if (!afisha){
+    view.innerHTML = '<div class="nores">Расклеиваем афиши…</div>';
+    if (afLoading) return; afLoading = true;
+    try { await loadAfisha(); } catch(err){ afLoading = false; view.innerHTML = `<div class="nores">Афиша не загрузилась: ${esc(err.message)}</div>`; return; }
+    afLoading = false;
+    if (tab !== 'afisha') return;
+  }
+  const fn = AF_F.find(x => x[0] === afFilter)[2];
+  const list = afisha.filter(fn);
+  view.innerHTML = `<div class="head"><h2>Скоро на <em>экране</em></h2></div>
+    <p class="af-note">Премьеры в мире за две недели назад и три месяца вперёд. Под плакатом видно, выходит ли фильм в России. Сеансы «Синема 5» и VIP-зала «М-Синемы» добавим следующим шагом.</p>
+    <div class="filters"><div class="frow"><span class="fl">Показать</span>${AF_F.map(([k,l,f]) => `<button class="chip ${afFilter===k?'on':''}" data-af="${k}">${l}<small>${afisha.filter(f).length}</small></button>`).join('')}<span class="fcount">плакатов: ${list.length}</span></div></div>
+    <section class="af-wall" aria-label="Плакаты">${list.length ? `<div class="af-grid">${list.map((d,i) => afPosterHTML(d, afisha.indexOf(d))).join('')}</div>` : '<div class="nores">Здесь пусто</div>'}</section>`;
+  view.querySelectorAll('[data-af]').forEach(b => b.onclick = () => { afFilter = b.dataset.af; showAfisha(); });
+  view.querySelectorAll('.af-slot').forEach(el => {
+    const d = afisha.find(x => x.id == el.dataset.id);
+    el.querySelector('.af-poster').onclick = () => openCard(afMovie(d));
+    const w = el.querySelector('[data-act="want"]');
+    if (w) w.onclick = async () => { w.disabled = true; await addWant(afMovie(d)); if (tab === 'afisha') showAfisha(); };
+  });
+}
 function renderLogin(){
   nav.style.display = 'none';
   view.innerHTML = `<div class="booth login"><div class="roof"></div><h3>Только по билетам</h3><p>Вход для Вовы и Ники</p>
@@ -601,7 +729,7 @@ function renderLogin(){
     if (error) document.getElementById('le').textContent = 'Контролёр не пустил: проверь почту и пароль';
   };
 }
-function render(){ ({watched:showWatched, want:showWant, kassa:showKassa})[tab](); }
+function render(){ ({watched:showWatched, want:showWant, afisha:showAfisha, kassa:showKassa})[tab](); }
 function bindCards(list){ view.querySelectorAll('.grid .ticket').forEach(t => t.onclick = () => openCard(list.find(m => m.id == t.dataset.id))); }
 
 // ---------- карточка ----------
