@@ -1098,9 +1098,9 @@ async function openCard(m){
       <div class="other"><b>${esc(nameOf(other))}${m[other] ? ' — ' + m[other] + '/10' : ''}</b><br>${
         m[other+'s'] ? (m[other+'d'] ? 'смотрел(а) ' + ru(m[other+'d']) : 'без даты') : 'Ещё не смотрел(а)'}</div>
     </div>
+    <div class="xtra" id="cxtra"><div class="muted">Кассир несёт подробности…</div></div>
     <div class="letters"><div class="lbl">Письма о фильме</div><div class="envs">${['v','n'].map(k => envHTML(m,k)).join('')}</div></div>
-    </div>
-    <div class="xtra" id="cxtra"><div class="muted">Кассир несёт подробности…</div></div></div>`;
+    </div>`;
   d.showModal();
   fillExtra(m, d);
   d.querySelector('.close').onclick = () => d.close();
