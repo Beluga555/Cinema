@@ -783,7 +783,8 @@ function showCardHTML(f, i){
   const first = list[0];
   const horror = [...f.g, ...(m?.g || [])].some(x => /ужас|хоррор/i.test(x));
   const curY = new Date().getFullYear();
-  const rerun = f.rerun || (m?.y && Number(m.y) < curY - 1);
+  // «предсеанс. обсл.» у Синема 5 бывает и у новых фильмов, поэтому повторный показ определяем только по году с Кинопоиска
+  const rerun = m?.y && Number(m.y) < curY - 1;
   const byDay = {}; list.forEach(s => (byDay[s.at.slice(0,10)] ||= []).push(s));
   const days = Object.keys(byDay), open = shOpen.has(f.key), shown = open ? days : days.slice(0, 2);
   const btn = s => `<a class="sh-btn ${s.c}" href="${esc(s.url)}" target="_blank" rel="noopener" title="${esc(`${CIN[s.c]}, ${s.hall}${s.kind ? ', ' + s.kind : ''}${s.fmt ? ', ' + s.fmt : ''}. Откроется покупка на сайте кинотеатра`)}"><b>${s.at.slice(11,16)}</b><small>${esc(s.hall.replace('Зал ','зал '))}${s.kind ? ' ' + esc(s.kind) : ''}${s.price ? ', ' + s.price + ' ₽' : ''}</small></a>`;
