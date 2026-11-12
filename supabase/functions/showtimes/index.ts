@@ -24,7 +24,7 @@ const UA = { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKi
 
 type Show = { c: "c5" | "mc"; at: string; hall: string; kind: string; fmt: string; price: number | null; url: string };
 type Trailer = { url: string; thumb: string | null };
-type Film = { key: string; t: string; age: string | null; g: string[]; poster: string | null; rerun: boolean; year?: number | null; trailer: Trailer | null; shows: Show[] };
+type Film = { key: string; t: string; age: string | null; g: string[]; poster: string | null; rerun: boolean; year?: number | null; bundle?: boolean; trailer: Trailer | null; shows: Show[] };
 
 // «Гарри Поттер и Тайная комната предсеанс. обсл. & Матч Акпарса» → «Гарри Поттер и Тайная комната»
 const cleanTitle = (s: string) => s.replace(/\s+предсеанс\..*$/i, "").replace(/\s+/g, " ").trim();
@@ -102,8 +102,11 @@ async function mcinema(): Promise<Film[]> {
   await Promise.all(list.map(async (f) => {
     try {
       const d = await getJSON(`${KK}/release/${f.rid}?city_id=${MC_CITY}`, H);
-      const t = (d.release ?? d).trailer;
+      const rel = d.release ?? d;
+      const t = rel.trailer;
       if (t?.hd) f.trailer = { url: t.hd, thumb: t.thumbnail ?? null };
+      // «не фильм» в Kinoplan = связка-предпоказ: билет на российский фильм, а перед ним идёт другой
+      if (rel.is_movie === false) f.bundle = true;
     } catch { /* без трейлера, не страшно */ }
     delete f.rid;
   }));
@@ -152,6 +155,7 @@ Deno.serve(async (req) => {
     have.shows.push(...f.shows);
     if (!have.g.length) have.g = f.g;
     have.year ??= f.year ?? null;
+    have.bundle = !!(have.bundle && f.bundle); // одноимённый фильм есть и в Синема 5 — значит название настоящее
     if (f.trailer && (!have.trailer || f.shows[0]?.c === "mc")) have.trailer = f.trailer; // у Kinoplan трейлеры в HD
     if (have.rerun && !f.rerun) have.poster = f.poster ?? have.poster;
     have.rerun = have.rerun && f.rerun;

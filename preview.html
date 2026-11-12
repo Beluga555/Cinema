@@ -226,6 +226,17 @@ dialog::backdrop{background:rgba(5,4,3,.82)}
 .x-watch{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
 .x-watch a{display:flex;align-items:center;gap:6px;text-decoration:none;color:var(--ink);background:var(--bone);border:1.5px solid rgba(107,74,58,.55);border-radius:6px;padding:6px 10px;font-size:13px}
 .x-watch img{height:18px;width:auto;border-radius:3px}
+/* «Что за фильм?» */
+.picker .xh{justify-content:flex-start}.picker .xh::before{display:none}
+.pk-list{display:flex;flex-direction:column;gap:8px}
+.pk-item{display:flex;align-items:center;gap:12px;text-align:left;background:var(--bone);border:1.5px solid rgba(107,74,58,.45);border-radius:6px;padding:6px 10px 6px 6px;color:var(--ink);cursor:pointer;font:inherit;transition:border-color .15s,transform .15s}
+.pk-item:hover,.pk-item:focus-visible{border-color:var(--red);transform:translateX(3px);outline:none}
+.pk-item .ph{flex:none;width:42px;height:60px;border-radius:3px;background:#cdb894 center/cover no-repeat}
+.pk-item b{display:block;font:17px/1.15 'Yeseva One',serif;font-weight:400}
+.pk-item small{font-size:12.5px;color:var(--ink2)}
+.pk-find{display:flex;gap:8px}
+.pk-find input{flex:1;min-width:0;border:2px solid var(--ink2);background:transparent;border-radius:6px;padding:8px 10px;color:var(--ink);font:15px 'PT Sans'}
+.pk-real{margin-top:16px;background:none;border:0;padding:0;color:var(--ink2);text-decoration:underline;font:13px 'PT Sans';cursor:pointer;text-align:left}
 /* касса: бюджет и сборы штампом */
 .x-box{display:flex;flex-wrap:wrap;gap:14px;justify-content:center}
 .x-box div{min-width:150px;padding:10px 14px 8px;text-align:center;border:3px double var(--red);color:var(--red);border-radius:6px;transform:rotate(-1.5deg);background:rgba(156,26,32,.05)}
@@ -821,9 +832,28 @@ const dayLabel = iso => {
   if (iso === t) return 'Сегодня'; if (iso === tmISO) return 'Завтра';
   const d = new Date(iso+'T00:00:00'); return `${WD[d.getDay()]}, ${d.getDate()} ${MS[d.getMonth()]}`;
 };
-// связываем фильм из кинотеатра с Кинопоиском: сначала наша база, потом мировая афиша
+// ---------- предпоказы: «М-Синема» продаёт билет на российский фильм, а перед ним показывает другой ----------
+// какой фильм на самом деле, Вова или Ника указывают один раз; привязка хранится в базе (таблица film_alias) и видна обоим
+let aliases = {}, aliasDb = true;
+async function loadAliases(){
+  const { data, error } = await sb.from('film_alias').select('*');
+  if (error){ aliasDb = false; try { aliases = JSON.parse(localStorage.getItem('alias1') || '{}'); } catch(e){ aliases = {}; } return; }
+  aliasDb = true; aliases = Object.fromEntries(data.map(r => [r.cinema_key, r]));
+}
+async function saveAlias(key, m){
+  const row = { cinema_key:key, kp_id:m.id, title:m.t, poster:m.poster || null, year:m.y ? Number(m.y) : null, updated_at:new Date().toISOString() };
+  if (aliasDb){ const { error } = await sb.from('film_alias').upsert(row); if (error) throw error; }
+  else try { localStorage.setItem('alias1', JSON.stringify({ ...aliases, [key]:row })); } catch(e){}
+  aliases[key] = row;
+}
+const aliasMovie = a => films.find(x => x.id === a.kp_id) || (afisha || []).map(afMovie).find(x => x.id === a.kp_id)
+  || { id:a.kp_id, t:a.title, o:'', y:a.year || '', g:[], poster:a.poster, desc:null, kp:null, fresh:true };
+// связываем фильм из кинотеатра с Кинопоиском: сначала ручная привязка, потом наша база, потом мировая афиша
 function kpOf(f){
+  if (f.m !== undefined) return f.m;
   const k = f.key || normT(f.t);
+  if (aliases[k]) return aliasMovie(aliases[k]);
+  if (f.bundle) return null; // название российского фильма, по нему искать нельзя
   const mine = films.find(m => normT(m.t) === k || (m.o && normT(m.o) === k));
   if (mine) return mine;
   const d = (afisha || []).find(x => normT(x.t) === k || (x.o && normT(x.o) === k));
@@ -838,19 +868,35 @@ async function resolveKp(f){
   const docs = data.docs || [];
   // одноимённых фильмов бывает много («Психопатка» 2007, 2019, 2026…): берём год из кинотеатра, иначе самый свежий
   const curY = new Date().getFullYear();
-  const exact = docs.filter(d => [d.name, d.alternativeName, d.enName].some(n => n && normT(n) === f.key) && (!d.year || d.year <= curY + 1));
+  const key = f.keys?.[0] || f.key;
+  const exact = docs.filter(d => [d.name, d.alternativeName, d.enName].some(n => n && normT(n) === key) && (!d.year || d.year <= curY + 1));
   exact.sort((a, b) => (b.year || 0) - (a.year || 0));
   const d = (f.year && exact.find(x => x.year === f.year)) || exact[0] || docs[0];
   if (!d) return null;
   const m = films.find(x => x.id === d.id) || fromKp(d);
-  kpFound[f.key] = m; return m;
+  kpFound[key] = m; return m;
 }
+// склеиваем записи кинотеатров в карточки: предпоказ «Авиарежим» и «Тайный дневник Верити» из Синема 5 станут одной карточкой
+function groupShows(){
+  const out = new Map();
+  for (const f of shows?.films || []){
+    const m = kpOf(f), gk = m ? 'kp' + m.id : f.key;
+    const g = out.get(gk);
+    if (!g){ out.set(gk, { ...f, key:gk, keys:[f.key], m, t:m && (aliases[f.key] || f.bundle) ? m.t : f.t, as:aliases[f.key] ? [f.t] : [], bundle:f.bundle && !m, shows:[...f.shows] }); continue; }
+    g.keys.push(f.key); g.shows.push(...f.shows); g.shows.sort((x, y) => x.at.localeCompare(y.at));
+    if (aliases[f.key]) g.as.push(f.t);
+    if (!g.trailer || f.shows[0]?.c === 'mc' && f.trailer) g.trailer = f.trailer || g.trailer;
+    if (!g.g.length) g.g = f.g;
+  }
+  return [...out.values()].sort((x, y) => x.shows[0].at.localeCompare(y.shows[0].at));
+}
+let groups = [];
 const shPass = s => (shCin === 'all' || s.c === shCin) && (shDay === 'all' || s.at.slice(0,10) === shDay);
 function showCardHTML(f, i){
-  const p = AF_PAL[i % AF_PAL.length], m = kpOf(f);
+  const p = AF_PAL[i % AF_PAL.length], m = f.m;
   const list = f.shows.filter(shPass);
   const cins = [...new Set(f.shows.map(s => s.c))];
-  const top = cins.length > 1 ? 'В обоих кинотеатрах' : CIN[cins[0]];
+  const top = f.bundle ? 'Предпоказ' : cins.length > 1 ? 'В обоих кинотеатрах' : CIN[cins[0]];
   const first = list[0];
   const horror = [...f.g, ...(m?.g || [])].some(x => /ужас|хоррор/i.test(x));
   const curY = new Date().getFullYear();
@@ -859,26 +905,28 @@ function showCardHTML(f, i){
   const byDay = {}; list.forEach(s => (byDay[s.at.slice(0,10)] ||= []).push(s));
   const days = Object.keys(byDay), open = shOpen.has(f.key), shown = open ? days : days.slice(0, 2);
   const btn = s => `<a class="sh-btn ${s.c}" href="${esc(s.url)}" target="_blank" rel="noopener" title="${esc(`${CIN[s.c]}, ${s.hall}${s.kind ? ', ' + s.kind : ''}${s.fmt ? ', ' + s.fmt : ''}. Откроется покупка на сайте кинотеатра`)}"><b>${s.at.slice(11,16)}</b><small>${esc(s.hall.replace('Зал ','зал '))}${s.kind ? ' ' + esc(s.kind) : ''}${s.price ? ', ' + s.price + ' ₽' : ''}</small></a>`;
+  const sub = f.bundle ? 'билет на российский фильм' : f.as.length ? 'в кассе: «' + f.as.join('», «') + '»' : [f.age, (f.g.length ? f.g : m?.g || []).slice(0,2).join(', ')].filter(Boolean).join(', ');
   return `<article class="af-slot" data-key="${esc(f.key)}">
-    <button class="af-poster${horror?' horror':''}" style="--pb:${p.pb};--pi:${p.pi};--pf:${p.pf};--pr:${p.pr};--r:${AF_TILT[i%AF_TILT.length]}deg" aria-label="${esc(f.t)}, открыть карточку">
+    <button class="af-poster${horror?' horror':''}" style="--pb:${p.pb};--pi:${p.pi};--pf:${p.pf};--pr:${p.pr};--r:${AF_TILT[i%AF_TILT.length]}deg" aria-label="${esc(f.t)}, ${f.bundle ? 'указать настоящий фильм' : 'открыть карточку'}">
       <span class="af-tape l"></span><span class="af-tape r"></span><div class="af-rays"></div>
       <div class="af-in"><div class="af-top">${esc(top)}</div>
         <div class="af-pic" style="background-image:url('${esc(m?.poster || f.poster || '')}')"></div>
-        <div class="af-title">${esc(f.t)}</div><div class="af-genre">${esc([f.age, (f.g.length ? f.g : m?.g || []).slice(0,2).join(', ')].filter(Boolean).join(', '))}</div>
+        <div class="af-title">${esc(f.t)}</div><div class="af-genre">${esc(sub)}</div>
         <div class="af-ribbon">${first ? `${esc(dayLabel(first.at.slice(0,10)))} <b>${first.at.slice(11,16)}</b>` : 'нет сеансов'}</div></div>
-      ${rerun ? '<div class="af-slap go">Повторный показ</div>' : ''}</button>
+      ${f.bundle ? '<div class="af-slap no">Что за фильм?</div>' : rerun ? '<div class="af-slap go">Повторный показ</div>' : ''}</button>
     ${m?.want ? '<div class="af-seal" aria-hidden="true">Хочу</div>' : ''}
     <div class="af-plate">
       <div class="sh-days">${shown.map(d => `<div class="sh-day">${esc(dayLabel(d))}</div><div class="sh-times">${byDay[d].map(btn).join('')}</div>`).join('')}
         ${days.length > 2 ? `<button class="sh-more" data-act="more">${open ? 'Свернуть' : `Все дни (${days.length})`}</button>` : ''}</div>
-      ${m && seen(m) ? '<button class="af-want on" disabled>Уже смотрели</button>'
+      ${f.bundle ? '<button class="af-want" data-act="which">Указать фильм</button>'
+        : m && seen(m) ? '<button class="af-want on" disabled>Уже смотрели</button>'
         : m?.want ? '<button class="af-want on" disabled>В списке «Хочу»</button>'
         : '<button class="af-want" data-act="want">Хочу посмотреть</button>'}
     </div></article>`;
 }
 function showsBlock(){
   if (showsErr) return `<div class="head af-sub"><h2>Сейчас в наших кино</h2></div><div class="nores">Сеансы не загрузились: ${esc(showsErr)}</div>`;
-  const all = shows?.films || [];
+  const all = groups = groupShows();
   const errs = shows?.errors || {};
   const errTxt = Object.entries(errs).map(([c, t]) => `${CIN[c]} не ответила: ${t}`).join('. ');
   const daysAll = [...new Set(all.flatMap(f => f.shows.filter(s => shCin === 'all' || s.c === shCin).map(s => s.at.slice(0,10))))].sort();
@@ -893,6 +941,83 @@ function showsBlock(){
     </div>
     <div class="sh-legend"><span><i></i>Синема 5, Броско Молл</span><span><i class="mc"></i>М-Синема, Максимолл</span><span>Нажми на время: покупка откроется на сайте кинотеатра</span></div>
     ${list.length ? `<section class="af-wall" aria-label="Сейчас в наших кино"><div class="af-grid">${list.map((f, i) => showCardHTML(f, i)).join('')}</div></section>` : '<div class="nores">В этот день сеансов нет</div>'}`;
+}
+// ---------- «Что за фильм?»: подсказка по сходству постеров + поиск по Кинопоиску ----------
+// отпечаток постера: 64 бита яркости (как меняется свет слева направо) + 24 средних цвета; хранится в браузере
+const psig = (() => { try { return JSON.parse(localStorage.getItem('psig1') || '{}'); } catch(e){ return {}; } })();
+async function posterSig(src){
+  if (psig[src]) return psig[src];
+  const px = await readPixels(src, 9, 8), col = await readPixels(src, 4, 6);
+  let bits = '';
+  for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++){
+    const i = (y*9 + x)*4, j = i + 4;
+    bits += (px[i]+px[i+1]+px[i+2]) > (px[j]+px[j+1]+px[j+2]) ? '1' : '0';
+  }
+  const c = []; for (let i = 0; i < col.length; i += 4) c.push(col[i], col[i+1], col[i+2]);
+  psig[src] = { b:bits, c };
+  try { const k = Object.keys(psig); if (k.length > 800) k.slice(0, k.length - 800).forEach(x => delete psig[x]); localStorage.setItem('psig1', JSON.stringify(psig)); } catch(e){}
+  return psig[src];
+}
+const sigDist = (a, b) => { let h = 0; for (let i = 0; i < 64; i++) if (a.b[i] !== b.b[i]) h++;
+  let c = 0; for (let i = 0; i < a.c.length; i++) c += Math.abs(a.c[i] - b.c[i]); c /= a.c.length * 255;
+  return h / 64 * .65 + c * .35; };
+async function suggestFor(f){
+  const target = await posterSig(f.poster);
+  const cands = [];
+  for (const g of groups) if (g !== f && !g.bundle && g.poster) cands.push({ src:g.m?.poster || g.poster, alt:g.m?.poster ? g.poster : null, t:g.t, m:g.m, g });
+  for (const d of afisha || []) if (d.poster) cands.push({ src:d.poster, t:d.t, m:afMovie(d), y:d.y });
+  let i = 0; const scored = [];
+  const worker = async () => { while (i < cands.length){ const c = cands[i++];
+    try { let s = sigDist(target, await posterSig(c.src)); if (c.alt) s = Math.min(s, sigDist(target, await posterSig(c.alt))); scored.push({ ...c, s }); } catch(e){} } };
+  await Promise.all(Array.from({ length:6 }, worker));
+  const seenT = new Set();
+  return scored.sort((a, b) => a.s - b.s).filter(c => !seenT.has(normT(c.t)) && seenT.add(normT(c.t))).slice(0, 4);
+}
+function openPicker(f){
+  const d = document.getElementById('dlg');
+  const cinKey = f.keys[0];
+  d.innerHTML = `<div class="afisha picker"><button class="close" aria-label="Закрыть">×</button>
+    <div><div class="big" style="background-image:url('${esc(f.poster || '')}')"></div></div>
+    <div><div class="kick">Предпоказ в «М-Синеме»</div><h3>Что за фильм?</h3>
+      <p class="desc">Кинотеатр продаёт билет на российский фильм «${esc(f.t)}», а перед ним показывает другой. Выберите, какой именно: привязка сохранится, и дальше карточка, трейлер и оценки будут от настоящего фильма.</p>
+      <div class="xh"><b>Похоже по постеру</b></div>
+      <div class="pk-list" id="pkSug"><div class="muted">Сравниваю постер с афишей…</div></div>
+      <div class="xh" style="margin-top:18px"><b>Или найти самому</b></div>
+      <form class="pk-find" id="pkF"><input id="pkQ" placeholder="Название фильма" autocomplete="off"><button class="btn">Найти</button></form>
+      <div class="pk-list" id="pkRes"></div>
+      <button class="pk-real" id="pkReal" type="button">Нет, это и правда российский фильм «${esc(f.t)}»</button>
+    </div></div>`;
+  d.showModal();
+  d.querySelector('.close').onclick = () => d.close();
+  const choose = async m => {
+    try { await saveAlias(cinKey, m); } catch(err){ toast('Не сохранилось: ' + err.message); return; }
+    toast('Привязали: ' + m.t); d.close(); if (tab === 'afisha') showAfisha(); openCard(films.find(x => x.id === m.id) || m);
+  };
+  const item = (m, note) => `<button class="pk-item" type="button" data-id="${m.id}"><span class="ph" style="background-image:url('${esc(m.poster || P(m.id))}')"></span><span><b>${esc(m.t)}</b><small>${esc([m.y, note].filter(Boolean).join(', '))}</small></span></button>`;
+  const bind = (box, arr) => box.querySelectorAll('.pk-item').forEach(b => b.onclick = () => choose(arr.find(x => x.id == b.dataset.id)));
+  suggestFor(f).then(async list => {
+    const box = d.querySelector('#pkSug'); if (!box) return;
+    const ms = [];
+    for (const c of list){ let m = c.m; if (!m && c.g){ try { m = await resolveKp(c.g); } catch(e){} } if (m) ms.push([m, c.s]); }
+    box.innerHTML = ms.length ? ms.map(([m, s]) => item(m, s < .2 ? 'постер почти совпадает' : s < .3 ? 'постер похож' : '')).join('') : '<div class="muted">Похожих постеров не нашлось, попробуй поиск</div>';
+    bind(box, ms.map(x => x[0]));
+  }).catch(() => { const box = d.querySelector('#pkSug'); if (box) box.innerHTML = '<div class="muted">Сравнить постеры не вышло, попробуй поиск</div>'; });
+  d.querySelector('#pkF').onsubmit = async e => {
+    e.preventDefault(); const q = d.querySelector('#pkQ').value.trim(); if (!q) return;
+    const box = d.querySelector('#pkRes'); box.innerHTML = '<div class="muted">Ищу…</div>';
+    const { data, error } = await sb.functions.invoke('kp', { body:{ action:'search', query:q } });
+    if (error || data?.error){ box.innerHTML = '<div class="muted">Кинопоиск не ответил</div>'; return; }
+    const ms = (data.docs || []).slice(0, 6).map(x => films.find(y => y.id === x.id) || fromKp(x));
+    box.innerHTML = ms.length ? ms.map(m => item(m)).join('') : '<div class="muted">Ничего не нашлось</div>';
+    bind(box, ms);
+  };
+  d.querySelector('#pkReal').onclick = async () => {
+    const { data } = await sb.functions.invoke('kp', { body:{ action:'search', query:f.t } });
+    const curY = new Date().getFullYear();
+    const docs = (data?.docs || []).filter(x => normT(x.name || '') === normT(f.t)).sort((a, b) => Math.abs((a.year||0) - curY) - Math.abs((b.year||0) - curY));
+    if (!docs[0]){ toast('На Кинопоиске такого не нашлось'); return; }
+    choose(films.find(y => y.id === docs[0].id) || fromKp(docs[0]));
+  };
 }
 // ---------- автоцвет плакатов: фон плаката подстраивается под цвет постера ----------
 const pcol = (() => { try { return JSON.parse(localStorage.getItem('pcol2') || '{}'); } catch(e){ return {}; } })();
@@ -914,9 +1039,9 @@ function posterTones(px){
   const h = Math.round(best.h / best.w * 360), s = Math.min(70, Math.round(best.s / best.w * 100));
   return { pb:`hsl(${h} ${Math.max(28, s - 10)}% 17%)`, pi:'#f4ebd9', pf:`hsl(${h} ${Math.min(65, s + 5)}% 72%)`, pr:`hsl(${h} ${s}% 60% / .32)` };
 }
-async function readPixels(src){
-  const draw = img => { const c = document.createElement('canvas'); c.width = 24; c.height = 36; const x = c.getContext('2d', { willReadFrequently:true });
-    x.drawImage(img, 0, 0, 24, 36); return x.getImageData(0, 0, 24, 36).data; };
+async function readPixels(src, W = 24, H = 36){
+  const draw = img => { const c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d', { willReadFrequently:true });
+    x.drawImage(img, 0, 0, W, H); return x.getImageData(0, 0, W, H).data; };
   try {
     const img = await new Promise((ok, no) => { const i = new Image(); i.crossOrigin = 'anonymous'; i.onload = () => ok(i); i.onerror = no; i.src = src; });
     return draw(img);
@@ -942,7 +1067,7 @@ async function showAfisha(){
   if (!afisha || (!shows && !showsErr)){
     view.innerHTML = '<div class="nores">Расклеиваем афиши…</div>';
     if (afLoading) return; afLoading = true;
-    const [a, b] = await Promise.allSettled([loadAfisha(), loadShows()]);
+    const [a, b] = await Promise.allSettled([loadAfisha(), loadShows(), loadAliases()]);
     afLoading = false;
     showsErr = b.status === 'rejected' ? b.reason.message : null;
     if (a.status === 'rejected' && b.status === 'rejected'){ view.innerHTML = `<div class="nores">Афиша не загрузилась: ${esc(a.reason.message)}</div>`; return; }
@@ -951,7 +1076,9 @@ async function showAfisha(){
   }
   // в «Афише мира» не повторяем то, что уже идёт у нас
   const ours = new Set((shows?.films || []).map(f => f.key));
-  const world = afisha.filter(d => !ours.has(normT(d.t)) && !(d.o && ours.has(normT(d.o))));
+  if (shows && !showsErr) groups = groupShows();
+  const oursKp = new Set(groups.map(g => g.m?.id).filter(Boolean));
+  const world = afisha.filter(d => !oursKp.has(d.id) && !ours.has(normT(d.t)) && !(d.o && ours.has(normT(d.o))));
   const fn = AF_F.find(x => x[0] === afFilter)[2];
   const list = world.filter(fn), today = todayISO();
   const soon = list.filter(d => !d.world || dayOf(d.world) > today).sort((a,b) => String(a.russia || a.world).localeCompare(String(b.russia || b.world)));
@@ -968,9 +1095,10 @@ async function showAfisha(){
   view.querySelectorAll('[data-shc]').forEach(b => b.onclick = () => { shCin = b.dataset.shc; showAfisha(); });
   view.querySelectorAll('[data-shd]').forEach(b => b.onclick = () => { shDay = b.dataset.shd; showAfisha(); });
   view.querySelectorAll('.af-slot[data-key]').forEach(el => {
-    const f = shows.films.find(x => x.key === el.dataset.key);
+    const f = groups.find(x => x.key === el.dataset.key);
     const pick = async () => { const m = await resolveKp(f); if (!m) { toast('На Кинопоиске не нашлось'); return null; } return m; };
-    el.querySelector('.af-poster').onclick = async () => { try { const m = await pick(); if (m) openCard(m); } catch(err){ toast('Ошибка: ' + err.message); } };
+    el.querySelector('.af-poster').onclick = async () => { if (f.bundle) return openPicker(f); try { const m = await pick(); if (m) openCard(m); } catch(err){ toast('Ошибка: ' + err.message); } };
+    const wh = el.querySelector('[data-act="which"]'); if (wh) wh.onclick = () => openPicker(f);
     const more = el.querySelector('[data-act="more"]');
     if (more) more.onclick = () => { shOpen.has(f.key) ? shOpen.delete(f.key) : shOpen.add(f.key); showAfisha(); };
     const w = el.querySelector('[data-act="want"]');
@@ -1120,10 +1248,10 @@ const money = o => { if (!o?.value) return ''; const v = o.value, c = o.currency
   const n = v >= 1e9 ? (v/1e9).toFixed(1).replace('.', ',').replace(',0','') + ' млрд' : v >= 1e6 ? Math.round(v/1e6) + ' млн' : v.toLocaleString('ru-RU');
   return (c === '$' || c === '€') ? c + n : n + ' ' + c; };
 const runtime = n => n ? (n >= 60 ? `${Math.floor(n/60)} ч${n % 60 ? ' ' + (n % 60) + ' мин' : ''}` : n + ' мин') : '';
-const showsFor = m => (shows?.films || []).find(f => f.key === normT(m.t) || (m.o && f.key === normT(m.o)) || kpFound[f.key]?.id === m.id);
+const showsFor = m => (groups.length ? groups : groupShows()).find(g => g.m?.id === m.id || g.keys.some(k => k === normT(m.t) || (m.o && k === normT(m.o)) || kpFound[k]?.id === m.id));
 async function fillExtra(m, d){
   const box = d.querySelector('#cxtra');
-  if (!shows && !showsErr) { try { await loadShows(); } catch(e){} }
+  if (!shows && !showsErr) { try { await Promise.all([loadShows(), loadAliases()]); } catch(e){} }
   const full = await loadFull(m).catch(() => null);
   if (!d.open || !d.contains(box)) return;
   const sf = showsFor(m);
