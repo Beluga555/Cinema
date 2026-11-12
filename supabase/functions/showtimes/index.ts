@@ -24,7 +24,7 @@ const UA = { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKi
 
 type Show = { c: "c5" | "mc"; at: string; hall: string; kind: string; fmt: string; price: number | null; url: string };
 type Trailer = { url: string; thumb: string | null };
-type Film = { key: string; t: string; age: string | null; g: string[]; poster: string | null; rerun: boolean; year?: number | null; bundle?: boolean; trailer: Trailer | null; shows: Show[] };
+type Film = { key: string; t: string; age: string | null; g: string[]; poster: string | null; rerun: boolean; year?: number | null; dur?: number | null; bundle?: boolean; trailer: Trailer | null; shows: Show[] };
 
 // «Гарри Поттер и Тайная комната предсеанс. обсл. & Матч Акпарса» → «Гарри Поттер и Тайная комната»
 const cleanTitle = (s: string) => s.replace(/\s+предсеанс\..*$/i, "").replace(/\s+/g, " ").trim();
@@ -83,7 +83,7 @@ async function mcinema(): Promise<Film[]> {
       const f = out.get(key) ?? {
         key, t: cleanTitle(r.title), age: r.age_rating || null,
         g: (r.genres ?? []).map((x: any) => x.title ?? x).filter(Boolean),
-        poster: r.poster || r.thumbnail || null, rerun: false, year: r.year ?? null, trailer: null, shows: [], rid: r.id,
+        poster: r.poster || r.thumbnail || null, rerun: false, year: r.year ?? null, dur: r.duration ?? null, trailer: null, shows: [], rid: r.id,
       } as Film & { rid?: number };
       const time = String(s.start_date_time).slice(11, 16);
       const hallTitle = String(s.hall?.title ?? "");

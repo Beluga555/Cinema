@@ -764,13 +764,13 @@ const waitFmt = n => n >= 1000 ? Math.round(n/1000)+' тыс.' : String(n);
 async function loadAfisha(force){
   if (afisha && !force) return;
   try {
-    const c = JSON.parse(sessionStorage.getItem('afisha2') || 'null');
+    const c = JSON.parse(sessionStorage.getItem('afisha3') || 'null');
     if (!force && c && Date.now() - c.at < 6*3600e3){ afisha = c.docs; return; }
   } catch(e){}
   const { data, error } = await sb.functions.invoke('premieres', { body:{} });
   if (error || data?.error) throw new Error(error?.message || data.error);
   afisha = data.docs || [];
-  try { sessionStorage.setItem('afisha2', JSON.stringify({ at:Date.now(), docs:afisha })); } catch(e){}
+  try { sessionStorage.setItem('afisha3', JSON.stringify({ at:Date.now(), docs:afisha })); } catch(e){}
 }
 const afMovie = d => films.find(f => f.id === d.id) || { id:d.id, t:d.t, o:d.o, y:d.y, g:d.g, poster:d.poster, desc:d.desc, kp:d.kp, fresh:true };
 const AF_F = [
@@ -942,36 +942,23 @@ function showsBlock(){
     <div class="sh-legend"><span><i></i>Синема 5, Броско Молл</span><span><i class="mc"></i>М-Синема, Максимолл</span><span>Нажми на время: покупка откроется на сайте кинотеатра</span></div>
     ${list.length ? `<section class="af-wall" aria-label="Сейчас в наших кино"><div class="af-grid">${list.map((f, i) => showCardHTML(f, i)).join('')}</div></section>` : '<div class="nores">В этот день сеансов нет</div>'}`;
 }
-// ---------- «Что за фильм?»: подсказка по сходству постеров + поиск по Кинопоиску ----------
-// отпечаток постера: 64 бита яркости (как меняется свет слева направо) + 24 средних цвета; хранится в браузере
-const psig = (() => { try { return JSON.parse(localStorage.getItem('psig1') || '{}'); } catch(e){ return {}; } })();
-async function posterSig(src){
-  if (psig[src]) return psig[src];
-  const px = await readPixels(src, 9, 8), col = await readPixels(src, 4, 6);
-  let bits = '';
-  for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++){
-    const i = (y*9 + x)*4, j = i + 4;
-    bits += (px[i]+px[i+1]+px[i+2]) > (px[j]+px[j+1]+px[j+2]) ? '1' : '0';
-  }
-  const c = []; for (let i = 0; i < col.length; i += 4) c.push(col[i], col[i+1], col[i+2]);
-  psig[src] = { b:bits, c };
-  try { const k = Object.keys(psig); if (k.length > 800) k.slice(0, k.length - 800).forEach(x => delete psig[x]); localStorage.setItem('psig1', JSON.stringify(psig)); } catch(e){}
-  return psig[src];
-}
-const sigDist = (a, b) => { let h = 0; for (let i = 0; i < 64; i++) if (a.b[i] !== b.b[i]) h++;
-  let c = 0; for (let i = 0; i < a.c.length; i++) c += Math.abs(a.c[i] - b.c[i]); c /= a.c.length * 255;
-  return h / 64 * .65 + c * .35; };
+// ---------- «Что за фильм?»: подсказка по длительности ----------
+// длительность связки в «М-Синеме» = российская короткометражка + настоящий фильм (Авиарежим 134 мин = 13 + «Верити» 117 + реклама).
+// Кандидаты: фильмы мировой афиши, отдельно наверх те, что Синема 5 сейчас крутит предпоказом
 async function suggestFor(f){
-  const target = await posterSig(f.poster);
-  const cands = [];
-  for (const g of groups) if (g !== f && !g.bundle && g.poster) cands.push({ src:g.m?.poster || g.poster, alt:g.m?.poster ? g.poster : null, t:g.t, m:g.m, g });
-  for (const d of afisha || []) if (d.poster) cands.push({ src:d.poster, t:d.t, m:afMovie(d), y:d.y });
-  let i = 0; const scored = [];
-  const worker = async () => { while (i < cands.length){ const c = cands[i++];
-    try { let s = sigDist(target, await posterSig(c.src)); if (c.alt) s = Math.min(s, sigDist(target, await posterSig(c.alt))); scored.push({ ...c, s }); } catch(e){} } };
-  await Promise.all(Array.from({ length:6 }, worker));
-  const seenT = new Set();
-  return scored.sort((a, b) => a.s - b.s).filter(c => !seenT.has(normT(c.t)) && seenT.add(normT(c.t))).slice(0, 4);
+  if (!f.dur) return [];
+  const curY = new Date().getFullYear();
+  let short = 15;
+  try {
+    const { data } = await sb.functions.invoke('kp', { body:{ action:'search', query:f.t } });
+    const d = (data?.docs || []).find(x => normT(x.name || '') === normT(f.t) && x.movieLength && x.movieLength <= 45 && (x.year || 0) >= curY - 2);
+    if (d) short = d.movieLength;
+  } catch(e){}
+  const target = f.dur - short;
+  const c5pre = new Set((shows?.films || []).filter(x => x.rerun).map(x => x.key));
+  return (afisha || []).filter(d => d.len && Math.abs(d.len - target) <= 12)
+    .map(d => ({ m:afMovie(d), diff:Math.abs(d.len - target), pre:c5pre.has(normT(d.t)) || (d.o && c5pre.has(normT(d.o))) }))
+    .sort((a, b) => (b.pre - a.pre) || (a.diff - b.diff)).slice(0, 5);
 }
 function openPicker(f){
   const d = document.getElementById('dlg');
@@ -980,8 +967,8 @@ function openPicker(f){
     <div><div class="big" style="background-image:url('${esc(f.poster || '')}')"></div></div>
     <div><div class="kick">Предпоказ в «М-Синеме»</div><h3>Что за фильм?</h3>
       <p class="desc">Кинотеатр продаёт билет на российский фильм «${esc(f.t)}», а перед ним показывает другой. Выберите, какой именно: привязка сохранится, и дальше карточка, трейлер и оценки будут от настоящего фильма.</p>
-      <div class="xh"><b>Похоже по постеру</b></div>
-      <div class="pk-list" id="pkSug"><div class="muted">Сравниваю постер с афишей…</div></div>
+      <div class="xh"><b>Подходят по длительности</b></div>
+      <div class="pk-list" id="pkSug"><div class="muted">Подбираю…</div></div>
       <div class="xh" style="margin-top:18px"><b>Или найти самому</b></div>
       <form class="pk-find" id="pkF"><input id="pkQ" placeholder="Название фильма" autocomplete="off"><button class="btn">Найти</button></form>
       <div class="pk-list" id="pkRes"></div>
@@ -995,13 +982,11 @@ function openPicker(f){
   };
   const item = (m, note) => `<button class="pk-item" type="button" data-id="${m.id}"><span class="ph" style="background-image:url('${esc(m.poster || P(m.id))}')"></span><span><b>${esc(m.t)}</b><small>${esc([m.y, note].filter(Boolean).join(', '))}</small></span></button>`;
   const bind = (box, arr) => box.querySelectorAll('.pk-item').forEach(b => b.onclick = () => choose(arr.find(x => x.id == b.dataset.id)));
-  suggestFor(f).then(async list => {
+  suggestFor(f).then(list => {
     const box = d.querySelector('#pkSug'); if (!box) return;
-    const ms = [];
-    for (const c of list){ let m = c.m; if (!m && c.g){ try { m = await resolveKp(c.g); } catch(e){} } if (m) ms.push([m, c.s]); }
-    box.innerHTML = ms.length ? ms.map(([m, s]) => item(m, s < .2 ? 'постер почти совпадает' : s < .3 ? 'постер похож' : '')).join('') : '<div class="muted">Похожих постеров не нашлось, попробуй поиск</div>';
-    bind(box, ms.map(x => x[0]));
-  }).catch(() => { const box = d.querySelector('#pkSug'); if (box) box.innerHTML = '<div class="muted">Сравнить постеры не вышло, попробуй поиск</div>'; });
+    box.innerHTML = list.length ? list.map(c => item(c.m, c.pre ? 'идёт предпоказом в Синема 5' : c.diff <= 5 ? 'длительность сходится' : '')).join('') : '<div class="muted">По длительности ничего не подошло, попробуй поиск</div>';
+    bind(box, list.map(c => c.m));
+  }).catch(() => { const box = d.querySelector('#pkSug'); if (box) box.innerHTML = '<div class="muted">Подсказка не сработала, попробуй поиск</div>'; });
   d.querySelector('#pkF').onsubmit = async e => {
     e.preventDefault(); const q = d.querySelector('#pkQ').value.trim(); if (!q) return;
     const box = d.querySelector('#pkRes'); box.innerHTML = '<div class="muted">Ищу…</div>';
@@ -1140,7 +1125,7 @@ const CHECKS = [
     const { data, error } = await sb.functions.invoke('premieres', { body:{} });
     if (error || data?.error) return { s:'bad', t:'Афиша не грузится: ' + (error?.message || data.error) };
     const docs = data.docs || [], today = todayISO();
-    afisha = docs; try { sessionStorage.setItem('afisha2', JSON.stringify({ at:Date.now(), docs })); } catch(e){}
+    afisha = docs; try { sessionStorage.setItem('afisha3', JSON.stringify({ at:Date.now(), docs })); } catch(e){}
     const soon = docs.filter(d => d.world && dayOf(d.world) > today).length;
     const noPoster = docs.filter(d => !d.poster), ru = docs.filter(d => d.russia).length;
     const list = [];

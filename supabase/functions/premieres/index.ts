@@ -33,7 +33,7 @@ Deno.serve(async (req) => {
   //    вроде «Прайм-тайма», которые потом выходят в прокат), отбор по оценкам IMDb (≥3000).
   const now = Date.now(), day = 864e5;
   const NOISE = ["!короткометражка", "!документальный", "!концерт", "!реальное ТВ", "!ток-шоу", "!церемония"];
-  const FIELDS = ["id", "name", "enName", "alternativeName", "year", "genres", "poster", "premiere", "rating", "votes", "shortDescription", "countries"];
+  const FIELDS = ["id", "name", "enName", "alternativeName", "year", "genres", "poster", "premiere", "rating", "votes", "shortDescription", "countries", "movieLength"];
   const query = (from: Date, to: Date, sortField: string, minField: string, min: number) => {
     const p = new URLSearchParams();
     p.set("premiere.world", `${ddmmyyyy(from)}-${ddmmyyyy(to)}`);
@@ -80,6 +80,7 @@ Deno.serve(async (req) => {
     awaiting: d.votes?.await || null,
     imdbVotes: d.votes?.imdb || null,
     desc: d.shortDescription ?? null,
+    len: d.movieLength || null,
   }));
   docs.sort((a: any, b: any) => String(a.world).localeCompare(String(b.world)));
   return json({ from: from.toISOString(), to: to.toISOString(), docs });
