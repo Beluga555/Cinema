@@ -123,6 +123,20 @@ Deno.serve(async (req) => {
   });
   if (!user.ok) return json({ error: "Нужно войти" }, 401);
 
+  // посредник для постеров: часть сайтов не даёт браузеру прочитать цвета картинки,
+  // поэтому сайт берёт её через нас. Только картинки и только с известных сайтов, чтобы это не стало открытым прокси.
+  const reqBody = await req.json().catch(() => ({}));
+  if (reqBody?.img) {
+    let u: URL;
+    try { u = new URL(String(reqBody.img)); } catch { return json({ error: "плохая ссылка" }, 400); }
+    const okHost = /(^|\.)(kinoplan24\.ru|kinoplan\.io|cinemabox\.team|tmdb\.org|yandex\.net|kp\.yandex\.net)$/.test(u.hostname);
+    if (u.protocol !== "https:" || !okHost) return json({ error: "сайт не из списка" }, 400);
+    const r = await fetch(u, { headers: { "User-Agent": UA["User-Agent"] } });
+    const type = r.headers.get("content-type") ?? "";
+    if (!r.ok || !type.startsWith("image/")) return json({ error: `картинка не отдалась (${r.status})` }, 502);
+    return new Response(r.body, { headers: { ...cors, "Content-Type": type, "Cache-Control": "public, max-age=604800" } });
+  }
+
   if (cache && Date.now() - cache.at < TTL) return json(cache.body);
 
   const [a, b] = await Promise.allSettled([cinema5(), mcinema()]);

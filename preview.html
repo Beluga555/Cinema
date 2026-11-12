@@ -413,6 +413,7 @@ dialog.lt::backdrop{background:transparent}
 .af-poster{position:relative;width:100%;aspect-ratio:3/5;container-type:inline-size;overflow:hidden;cursor:pointer;border:0;padding:0;font:inherit;
   color:var(--pi);background:var(--pb);transform:rotate(var(--r,0deg));box-shadow:0 14px 26px rgba(0,0,0,.6),inset 0 0 40px rgba(60,30,10,.35)}
 .af-poster:focus-visible{outline:3px solid var(--gold2);outline-offset:4px}
+.af-poster,.af-poster .af-ribbon,.af-poster::after{transition:background-color .5s,color .5s,border-color .5s}
 .af-poster::before{content:"";position:absolute;inset:0;pointer-events:none;z-index:4;mix-blend-mode:multiply;
   background:radial-gradient(70px 50px at 82% 92%,rgba(90,50,20,.30),transparent 70%),radial-gradient(90px 60px at 12% 6%,rgba(90,50,20,.22),transparent 70%)}
 .af-poster::after{content:"";position:absolute;inset:3.5%;border:2px solid var(--pf);outline:1px solid var(--pf);outline-offset:-6px;pointer-events:none;z-index:3}
@@ -537,7 +538,8 @@ dialog.lt::backdrop{background:transparent}
 
 <script type="module">
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
-const sb = createClient('https://blzdhvctwrkamvayylrr.supabase.co', 'sb_publishable_YjNiD8hhkHcfRe6wcugaHg_iPNf4ieP');
+const SB_URL = 'https://blzdhvctwrkamvayylrr.supabase.co', SB_KEY = 'sb_publishable_YjNiD8hhkHcfRe6wcugaHg_iPNf4ieP';
+const sb = createClient(SB_URL, SB_KEY);
 
 const P = id => 'https://st.kp.yandex.net/images/film_iphone/iphone360_' + id + '.jpg';
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -892,6 +894,49 @@ function showsBlock(){
     <div class="sh-legend"><span><i></i>Синема 5, Броско Молл</span><span><i class="mc"></i>М-Синема, Максимолл</span><span>Нажми на время: покупка откроется на сайте кинотеатра</span></div>
     ${list.length ? `<section class="af-wall" aria-label="Сейчас в наших кино"><div class="af-grid">${list.map((f, i) => showCardHTML(f, i)).join('')}</div></section>` : '<div class="nores">В этот день сеансов нет</div>'}`;
 }
+// ---------- автоцвет плакатов: фон плаката подстраивается под цвет постера ----------
+const pcol = (() => { try { return JSON.parse(localStorage.getItem('pcol1') || '{}'); } catch(e){ return {}; } })();
+const savePcol = () => { try { const k = Object.keys(pcol); if (k.length > 600) k.slice(0, k.length - 600).forEach(x => delete pcol[x]); localStorage.setItem('pcol1', JSON.stringify(pcol)); } catch(e){} };
+function rgb2hsl(r, g, b){ r/=255; g/=255; b/=255; const mx = Math.max(r,g,b), mn = Math.min(r,g,b), l = (mx+mn)/2; if (mx === mn) return [0,0,l];
+  const d = mx-mn, s = l > .5 ? d/(2-mx-mn) : d/(mx+mn); const h = mx === r ? ((g-b)/d + (g < b ? 6 : 0)) : mx === g ? (b-r)/d + 2 : (r-g)/d + 4; return [h/6, s, l]; }
+// главный цвет постера: самый «весомый» насыщенный оттенок, у серых постеров — классическая тёмная гамма
+function posterTones(px){
+  const bins = Array.from({ length:12 }, () => ({ w:0, s:0, h:0 })); let n = 0;
+  for (let i = 0; i < px.length; i += 4){
+    const [h, s, l] = rgb2hsl(px[i], px[i+1], px[i+2]); n++;
+    if (s < .22 || l < .1 || l > .9) continue;
+    const b = bins[Math.floor(h*12) % 12], w = s * (1 - Math.abs(l - .5));
+    b.w += w; b.s += s*w; b.h += h*w;
+  }
+  const best = bins.reduce((a, b) => b.w > a.w ? b : a);
+  if (best.w < n * .04) return null;
+  const h = Math.round(best.h / best.w * 360), s = Math.min(70, Math.round(best.s / best.w * 100));
+  return { pb:`hsl(${h} ${Math.max(28, s - 10)}% 17%)`, pi:'#f4ebd9', pf:`hsl(${h} ${Math.min(65, s + 5)}% 72%)`, pr:`hsl(${h} ${s}% 60% / .32)` };
+}
+async function readPixels(src){
+  const draw = img => { const c = document.createElement('canvas'); c.width = 24; c.height = 36; const x = c.getContext('2d', { willReadFrequently:true });
+    x.drawImage(img, 0, 0, 24, 36); return x.getImageData(0, 0, 24, 36).data; };
+  try {
+    const img = await new Promise((ok, no) => { const i = new Image(); i.crossOrigin = 'anonymous'; i.onload = () => ok(i); i.onerror = no; i.src = src; });
+    return draw(img);
+  } catch(e){}
+  const { data:{ session } } = await sb.auth.getSession();
+  const r = await fetch(SB_URL + '/functions/v1/showtimes', { method:'POST', headers:{ Authorization:'Bearer ' + session?.access_token, apikey:SB_KEY, 'Content-Type':'application/json' }, body:JSON.stringify({ img:src }) });
+  if (!r.ok) throw new Error('img ' + r.status);
+  return draw(await createImageBitmap(await r.blob()));
+}
+const applyTones = (el, t) => { if (!t) return; for (const k of ['pb','pi','pf','pr']) el.style.setProperty('--' + k, t[k]); el.classList.add('tinted'); };
+async function tintPosters(root){
+  const jobs = [...root.querySelectorAll('.af-poster')].map(el => [el, (el.querySelector('.af-pic')?.style.backgroundImage || '').slice(5, -2)]).filter(([, u]) => u);
+  const todo = [];
+  for (const [el, u] of jobs){ if (u in pcol) applyTones(el, pcol[u]); else todo.push([el, u]); }
+  let i = 0;
+  const worker = async () => { while (i < todo.length){ const [el, u] = todo[i++];
+    try { pcol[u] = posterTones(await readPixels(u)); } catch(e){ continue; }
+    if (el.isConnected) applyTones(el, pcol[u]); } };
+  await Promise.all(Array.from({ length:6 }, worker));
+  if (todo.length) savePcol();
+}
 async function showAfisha(){
   if (!afisha || (!shows && !showsErr)){
     view.innerHTML = '<div class="nores">Расклеиваем афиши…</div>';
@@ -936,6 +981,7 @@ async function showAfisha(){
     const w = el.querySelector('[data-act="want"]');
     if (w) w.onclick = async () => { w.disabled = true; await addWant(afMovie(d)); if (tab === 'afisha') showAfisha(); };
   });
+  tintPosters(view);
 }
 // ---------- техосмотр: проверка всего сайта по кнопке ----------
 // Каждая проверка возвращает {s:'ok'|'warn'|'bad', t:'что видно', list:[подробности]}.
