@@ -23,7 +23,8 @@ const MC_CITY = 121, MC_CINEMA = 8411;
 const UA = { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131 Safari/537.36", "Accept": "application/json" };
 
 type Show = { c: "c5" | "mc"; at: string; hall: string; kind: string; fmt: string; price: number | null; url: string };
-type Film = { key: string; t: string; age: string | null; g: string[]; poster: string | null; rerun: boolean; shows: Show[] };
+type Trailer = { url: string; thumb: string | null };
+type Film = { key: string; t: string; age: string | null; g: string[]; poster: string | null; rerun: boolean; trailer: Trailer | null; shows: Show[] };
 
 // «Гарри Поттер и Тайная комната предсеанс. обсл. & Матч Акпарса» → «Гарри Поттер и Тайная комната»
 const cleanTitle = (s: string) => s.replace(/\s+предсеанс\..*$/i, "").replace(/\s+/g, " ").trim();
@@ -47,7 +48,7 @@ async function cinema5(): Promise<Film[]> {
     const f = out.get(key) ?? {
       key, t: cleanTitle(m.name), age: m.ageLimit != null ? `${m.ageLimit}+` : null,
       g: rerun ? [] : (m.genres ?? []).map((x: string) => x.trim()).filter(Boolean),
-      poster: m.vposter || null, rerun, shows: [],
+      poster: m.vposter || null, rerun, trailer: m.trailer ? { url: m.trailer, thumb: null } : null, shows: [],
     };
     for (const s of m.shows ?? []) {
       const cat = String(s.hallCategory ?? "");
@@ -82,8 +83,8 @@ async function mcinema(): Promise<Film[]> {
       const f = out.get(key) ?? {
         key, t: cleanTitle(r.title), age: r.age_rating || null,
         g: (r.genres ?? []).map((x: any) => x.title ?? x).filter(Boolean),
-        poster: r.poster || r.thumbnail || null, rerun: false, shows: [],
-      };
+        poster: r.poster || r.thumbnail || null, rerun: false, trailer: null, shows: [], rid: r.id,
+      } as Film & { rid?: number };
       const time = String(s.start_date_time).slice(11, 16);
       const hallTitle = String(s.hall?.title ?? "");
       f.shows.push({
@@ -96,7 +97,17 @@ async function mcinema(): Promise<Film[]> {
       out.set(key, f);
     }
   }
-  return [...out.values()];
+  // трейлеры: у Kinoplan они лежат в карточке релиза, по запросу на фильм (≈15–20 запросов раз в 30 минут)
+  const list = [...out.values()] as (Film & { rid?: number })[];
+  await Promise.all(list.map(async (f) => {
+    try {
+      const d = await getJSON(`${KK}/release/${f.rid}?city_id=${MC_CITY}`, H);
+      const t = (d.release ?? d).trailer;
+      if (t?.hd) f.trailer = { url: t.hd, thumb: t.thumbnail ?? null };
+    } catch { /* без трейлера, не страшно */ }
+    delete f.rid;
+  }));
+  return list;
 }
 
 // живёт, пока функция «тёплая»: повторные открытия афиши не дёргают сайты кинотеатров
@@ -126,6 +137,7 @@ Deno.serve(async (req) => {
     if (!have) { all.set(f.key, f); continue; }
     have.shows.push(...f.shows);
     if (!have.g.length) have.g = f.g;
+    if (f.trailer && (!have.trailer || f.shows[0]?.c === "mc")) have.trailer = f.trailer; // у Kinoplan трейлеры в HD
     if (have.rerun && !f.rerun) have.poster = f.poster ?? have.poster;
     have.rerun = have.rerun && f.rerun;
   }
