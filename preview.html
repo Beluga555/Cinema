@@ -787,8 +787,11 @@ async function resolveKp(f){
   const { data, error } = await sb.functions.invoke('kp', { body:{ action:'search', query:f.t } });
   if (error || data?.error) throw new Error(error?.message || data.error);
   const docs = data.docs || [];
-  const exact = docs.filter(d => [d.name, d.alternativeName, d.enName].some(n => n && normT(n) === f.key));
-  const d = exact[0] || docs[0];
+  // одноимённых фильмов бывает много («Психопатка» 2007, 2019, 2026…): берём год из кинотеатра, иначе самый свежий
+  const curY = new Date().getFullYear();
+  const exact = docs.filter(d => [d.name, d.alternativeName, d.enName].some(n => n && normT(n) === f.key) && (!d.year || d.year <= curY + 1));
+  exact.sort((a, b) => (b.year || 0) - (a.year || 0));
+  const d = (f.year && exact.find(x => x.year === f.year)) || exact[0] || docs[0];
   if (!d) return null;
   const m = films.find(x => x.id === d.id) || fromKp(d);
   kpFound[f.key] = m; return m;
