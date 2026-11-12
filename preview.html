@@ -895,8 +895,8 @@ function showsBlock(){
     ${list.length ? `<section class="af-wall" aria-label="Сейчас в наших кино"><div class="af-grid">${list.map((f, i) => showCardHTML(f, i)).join('')}</div></section>` : '<div class="nores">В этот день сеансов нет</div>'}`;
 }
 // ---------- автоцвет плакатов: фон плаката подстраивается под цвет постера ----------
-const pcol = (() => { try { return JSON.parse(localStorage.getItem('pcol1') || '{}'); } catch(e){ return {}; } })();
-const savePcol = () => { try { const k = Object.keys(pcol); if (k.length > 600) k.slice(0, k.length - 600).forEach(x => delete pcol[x]); localStorage.setItem('pcol1', JSON.stringify(pcol)); } catch(e){} };
+const pcol = (() => { try { return JSON.parse(localStorage.getItem('pcol2') || '{}'); } catch(e){ return {}; } })();
+const savePcol = () => { try { const k = Object.keys(pcol); if (k.length > 600) k.slice(0, k.length - 600).forEach(x => delete pcol[x]); localStorage.setItem('pcol2', JSON.stringify(pcol)); } catch(e){} };
 function rgb2hsl(r, g, b){ r/=255; g/=255; b/=255; const mx = Math.max(r,g,b), mn = Math.min(r,g,b), l = (mx+mn)/2; if (mx === mn) return [0,0,l];
   const d = mx-mn, s = l > .5 ? d/(2-mx-mn) : d/(mx+mn); const h = mx === r ? ((g-b)/d + (g < b ? 6 : 0)) : mx === g ? (b-r)/d + 2 : (r-g)/d + 4; return [h/6, s, l]; }
 // главный цвет постера: самый «весомый» насыщенный оттенок, у серых постеров — классическая тёмная гамма
@@ -909,7 +909,8 @@ function posterTones(px){
     b.w += w; b.s += s*w; b.h += h*w;
   }
   const best = bins.reduce((a, b) => b.w > a.w ? b : a);
-  if (best.w < n * .04) return null;
+  // почти бесцветный постер (чёрно-белый, тёмный хоррор) — классический «ночной» плакат с золотом
+  if (best.w < n * .04) return { pb:'#16100d', pi:'#e9c77c', pf:'#c8963e', pr:'rgba(200,150,62,.28)' };
   const h = Math.round(best.h / best.w * 360), s = Math.min(70, Math.round(best.s / best.w * 100));
   return { pb:`hsl(${h} ${Math.max(28, s - 10)}% 17%)`, pi:'#f4ebd9', pf:`hsl(${h} ${Math.min(65, s + 5)}% 72%)`, pr:`hsl(${h} ${s}% 60% / .32)` };
 }
