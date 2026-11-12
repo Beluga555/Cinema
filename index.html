@@ -378,6 +378,21 @@ dialog.lt::backdrop{background:transparent}
 .af-want.on{background:var(--red2);color:var(--bone);box-shadow:0 3px 0 #5a0d11;cursor:default}
 .af-note{color:var(--muted);font-size:13px;margin:-8px 0 18px;max-width:72ch}
 .af-sub{margin:30px 0 14px}.af-sub h2{font-size:26px}
+/* ---------- афиша: сеансы в наших кинотеатрах ---------- */
+.sh-days{display:flex;flex-direction:column;gap:8px}
+.sh-day{font:13px 'Kelly Slab';letter-spacing:.06em;color:var(--paper2);text-transform:uppercase}
+.sh-times{display:flex;flex-wrap:wrap;gap:6px}
+.sh-btn{display:flex;flex-direction:column;align-items:center;min-width:64px;padding:5px 8px 4px;border-radius:6px;text-decoration:none;color:var(--bone);background:#3a2419;border:1px solid #6b4630;line-height:1.1;transition:background .15s,border-color .15s}
+.sh-btn b{font:17px 'Yeseva One',serif;color:var(--gold2)}
+.sh-btn small{font-size:10.5px;color:var(--paper2);white-space:nowrap;margin-top:2px}
+.sh-btn.mc{background:#1e2b2c;border-color:#3f5f60}
+.sh-btn:hover,.sh-btn:focus-visible{background:var(--red2);border-color:var(--gold);outline:none}
+.sh-btn:hover small,.sh-btn:focus-visible small{color:var(--bone)}
+.sh-more{align-self:flex-start;background:none;border:0;padding:2px 0;color:var(--gold2);font:13px 'Kelly Slab';letter-spacing:.05em;text-decoration:underline;cursor:pointer}
+.sh-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin:-6px 0 14px}
+.sh-legend i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:5px;background:#3a2419;border:1px solid #6b4630}
+.sh-legend i.mc{background:#1e2b2c;border-color:#3f5f60}
+.sh-err{color:#e9b45a;font-size:13px;margin:0 0 12px}
 @media (max-width:520px){.af-wall{padding:24px 12px 20px}.af-grid{grid-template-columns:1fr 1fr;gap:28px 14px}.af-row{flex-direction:column;gap:0}.af-st{text-align:left}.af-plate{padding:9px 9px 10px}}
 @media (prefers-reduced-motion:no-preference){.af-poster{transition:transform .25s}.af-slot:hover .af-poster{transform:rotate(0deg) translateY(-4px) scale(1.02)}}
 
@@ -714,26 +729,138 @@ function afPosterHTML(d, i){
         : '<button class="af-want" data-act="want">Хочу посмотреть</button>'}
     </div></article>`;
 }
+// ---------- сеансы в наших кинотеатрах ----------
+// функция showtimes собирает расписание «Синема 5» и «М-Синемы»; кэш 30 минут, чтобы не дёргать их сайты
+const CIN = { c5:'Синема 5', mc:'М-Синема' };
+const WD = ['вс','пн','вт','ср','чт','пт','сб'];
+let shows = null, showsErr = null, shCin = 'all', shDay = 'all';
+const shOpen = new Set();
+const normT = s => String(s || '').replace(/\s+предсеанс\..*$/i, '').toLowerCase().replace(/ё/g,'е').replace(/[«»"'.,:;!?()\-–—]/g,' ').replace(/\s+/g,' ').trim();
+async function loadShows(force){
+  if (shows && !force) return;
+  try {
+    const c = JSON.parse(sessionStorage.getItem('shows1') || 'null');
+    if (!force && c && Date.now() - c.at < 30*60e3){ shows = c.data; return; }
+  } catch(e){}
+  const { data, error } = await sb.functions.invoke('showtimes', { body:{} });
+  if (error || data?.error) throw new Error(error?.message || data.error);
+  shows = data;
+  if (!Object.keys(data.errors || {}).length) try { sessionStorage.setItem('shows1', JSON.stringify({ at:Date.now(), data })); } catch(e){}
+}
+const dayLabel = iso => {
+  const t = todayISO(), tm = new Date(new Date(t+'T00:00:00').getTime() + 864e5);
+  const tmISO = `${tm.getFullYear()}-${String(tm.getMonth()+1).padStart(2,'0')}-${String(tm.getDate()).padStart(2,'0')}`;
+  if (iso === t) return 'Сегодня'; if (iso === tmISO) return 'Завтра';
+  const d = new Date(iso+'T00:00:00'); return `${WD[d.getDay()]}, ${d.getDate()} ${MS[d.getMonth()]}`;
+};
+// связываем фильм из кинотеатра с Кинопоиском: сначала наша база, потом мировая афиша
+function kpOf(f){
+  const k = f.key || normT(f.t);
+  const mine = films.find(m => normT(m.t) === k || (m.o && normT(m.o) === k));
+  if (mine) return mine;
+  const d = (afisha || []).find(x => normT(x.t) === k || (x.o && normT(x.o) === k));
+  if (d) return afMovie(d);
+  return kpFound[k] || null;
+}
+const kpFound = {};
+async function resolveKp(f){
+  const have = kpOf(f); if (have) return have;
+  const { data, error } = await sb.functions.invoke('kp', { body:{ action:'search', query:f.t } });
+  if (error || data?.error) throw new Error(error?.message || data.error);
+  const docs = data.docs || [];
+  const exact = docs.filter(d => [d.name, d.alternativeName, d.enName].some(n => n && normT(n) === f.key));
+  const d = exact[0] || docs[0];
+  if (!d) return null;
+  const m = films.find(x => x.id === d.id) || fromKp(d);
+  kpFound[f.key] = m; return m;
+}
+const shPass = s => (shCin === 'all' || s.c === shCin) && (shDay === 'all' || s.at.slice(0,10) === shDay);
+function showCardHTML(f, i){
+  const p = AF_PAL[i % AF_PAL.length], m = kpOf(f);
+  const list = f.shows.filter(shPass);
+  const cins = [...new Set(f.shows.map(s => s.c))];
+  const top = cins.length > 1 ? 'В обоих кинотеатрах' : CIN[cins[0]];
+  const first = list[0];
+  const horror = [...f.g, ...(m?.g || [])].some(x => /ужас|хоррор/i.test(x));
+  const curY = new Date().getFullYear();
+  const rerun = f.rerun || (m?.y && Number(m.y) < curY - 1);
+  const byDay = {}; list.forEach(s => (byDay[s.at.slice(0,10)] ||= []).push(s));
+  const days = Object.keys(byDay), open = shOpen.has(f.key), shown = open ? days : days.slice(0, 2);
+  const btn = s => `<a class="sh-btn ${s.c}" href="${esc(s.url)}" target="_blank" rel="noopener" title="${esc(`${CIN[s.c]}, ${s.hall}${s.kind ? ', ' + s.kind : ''}${s.fmt ? ', ' + s.fmt : ''}. Откроется покупка на сайте кинотеатра`)}"><b>${s.at.slice(11,16)}</b><small>${esc(s.hall.replace('Зал ','зал '))}${s.kind ? ' ' + esc(s.kind) : ''}${s.price ? ', ' + s.price + ' ₽' : ''}</small></a>`;
+  return `<article class="af-slot" data-key="${esc(f.key)}">
+    <button class="af-poster${horror?' horror':''}" style="--pb:${p.pb};--pi:${p.pi};--pf:${p.pf};--pr:${p.pr};--r:${AF_TILT[i%AF_TILT.length]}deg" aria-label="${esc(f.t)}, открыть карточку">
+      <span class="af-tape l"></span><span class="af-tape r"></span><div class="af-rays"></div>
+      <div class="af-in"><div class="af-top">${esc(top)}</div>
+        <div class="af-pic" style="background-image:url('${esc(m?.poster || f.poster || '')}')"></div>
+        <div class="af-title">${esc(f.t)}</div><div class="af-genre">${esc([f.age, (f.g.length ? f.g : m?.g || []).slice(0,2).join(', ')].filter(Boolean).join(', '))}</div>
+        <div class="af-ribbon">${first ? `${esc(dayLabel(first.at.slice(0,10)))} <b>${first.at.slice(11,16)}</b>` : 'нет сеансов'}</div></div>
+      ${rerun ? '<div class="af-slap go">Повторный показ</div>' : ''}</button>
+    ${m?.want ? '<div class="af-seal" aria-hidden="true">Хочу</div>' : ''}
+    <div class="af-plate">
+      <div class="sh-days">${shown.map(d => `<div class="sh-day">${esc(dayLabel(d))}</div><div class="sh-times">${byDay[d].map(btn).join('')}</div>`).join('')}
+        ${days.length > 2 ? `<button class="sh-more" data-act="more">${open ? 'Свернуть' : `Все дни (${days.length})`}</button>` : ''}</div>
+      ${m && seen(m) ? '<button class="af-want on" disabled>Уже смотрели</button>'
+        : m?.want ? '<button class="af-want on" disabled>В списке «Хочу»</button>'
+        : '<button class="af-want" data-act="want">Хочу посмотреть</button>'}
+    </div></article>`;
+}
+function showsBlock(){
+  if (showsErr) return `<div class="head af-sub"><h2>Сейчас в наших кино</h2></div><div class="nores">Сеансы не загрузились: ${esc(showsErr)}</div>`;
+  const all = shows?.films || [];
+  const errs = shows?.errors || {};
+  const errTxt = Object.entries(errs).map(([c, t]) => `${CIN[c]} не ответила: ${t}`).join('. ');
+  const daysAll = [...new Set(all.flatMap(f => f.shows.filter(s => shCin === 'all' || s.c === shCin).map(s => s.at.slice(0,10))))].sort();
+  if (shDay !== 'all' && !daysAll.includes(shDay)) shDay = 'all';
+  const list = all.filter(f => f.shows.some(shPass));
+  const cinChip = (k, l) => `<button class="chip ${shCin===k?'on':''}" data-shc="${k}">${l}<small>${all.filter(f => k === 'all' || f.shows.some(s => s.c === k)).length}</small></button>`;
+  return `<div class="head af-sub"><h2>Сейчас в наших кино</h2><span class="fcount">${list.length}</span></div>
+    ${errTxt ? `<p class="sh-err">${esc(errTxt)}</p>` : ''}
+    <div class="filters">
+      <div class="frow"><span class="fl">Кинотеатр</span>${cinChip('all','Оба')}${cinChip('c5','Синема 5')}${cinChip('mc','М-Синема')}</div>
+      <div class="frow"><span class="fl">День</span><button class="chip ${shDay==='all'?'on':''}" data-shd="all">Все дни</button>${daysAll.map(d => `<button class="chip ${shDay===d?'on':''}" data-shd="${d}">${esc(dayLabel(d))}</button>`).join('')}</div>
+    </div>
+    <div class="sh-legend"><span><i></i>Синема 5, Броско Молл</span><span><i class="mc"></i>М-Синема, Максимолл</span><span>Нажми на время: покупка откроется на сайте кинотеатра</span></div>
+    ${list.length ? `<section class="af-wall" aria-label="Сейчас в наших кино"><div class="af-grid">${list.map((f, i) => showCardHTML(f, i)).join('')}</div></section>` : '<div class="nores">В этот день сеансов нет</div>'}`;
+}
 async function showAfisha(){
-  if (!afisha){
+  if (!afisha || (!shows && !showsErr)){
     view.innerHTML = '<div class="nores">Расклеиваем афиши…</div>';
     if (afLoading) return; afLoading = true;
-    try { await loadAfisha(); } catch(err){ afLoading = false; view.innerHTML = `<div class="nores">Афиша не загрузилась: ${esc(err.message)}</div>`; return; }
+    const [a, b] = await Promise.allSettled([loadAfisha(), loadShows()]);
     afLoading = false;
+    showsErr = b.status === 'rejected' ? b.reason.message : null;
+    if (a.status === 'rejected' && b.status === 'rejected'){ view.innerHTML = `<div class="nores">Афиша не загрузилась: ${esc(a.reason.message)}</div>`; return; }
+    if (a.status === 'rejected') afisha = [];
     if (tab !== 'afisha') return;
   }
+  // в «Афише мира» не повторяем то, что уже идёт у нас
+  const ours = new Set((shows?.films || []).map(f => f.key));
+  const world = afisha.filter(d => !ours.has(normT(d.t)) && !(d.o && ours.has(normT(d.o))));
   const fn = AF_F.find(x => x[0] === afFilter)[2];
-  const list = afisha.filter(fn), today = todayISO();
-  const soon = list.filter(d => !d.world || dayOf(d.world) > today);
+  const list = world.filter(fn), today = todayISO();
+  const soon = list.filter(d => !d.world || dayOf(d.world) > today).sort((a,b) => String(a.russia || a.world).localeCompare(String(b.russia || b.world)));
   const out = list.filter(d => d.world && dayOf(d.world) <= today).sort((a,b) => b.world.localeCompare(a.world));
   const wall = (arr, label) => arr.length ? `<div class="head af-sub"><h2>${label}</h2><span class="fcount">${arr.length}</span></div>
     <section class="af-wall" aria-label="${label}"><div class="af-grid">${arr.map(d => afPosterHTML(d, afisha.indexOf(d))).join('')}</div></section>` : '';
   view.innerHTML = `<div class="head"><h2>Афиша <em>на двоих</em></h2></div>
-    <p class="af-note">Премьеры в мире: что выйдет в ближайшие три месяца и что уже идёт за границей последние пять. Под плакатом видно, выходит ли фильм в России. Сеансы «Синема 5» и VIP-зала «М-Синемы» добавим следующим шагом.</p>
-    <div class="filters"><div class="frow"><span class="fl">Показать</span>${AF_F.map(([k,l,f]) => `<button class="chip ${afFilter===k?'on':''}" data-af="${k}">${l}<small>${afisha.filter(f).length}</small></button>`).join('')}<span class="fcount">плакатов: ${list.length}</span></div></div>
+    <p class="af-note">Сверху фильмы, которые идут в «Синема 5» и «М-Синеме», с сеансами. Билеты покупаем на сайте кинотеатра. Ниже премьеры по всему миру и когда они выходят в России.</p>
+    ${showsBlock()}
+    <div class="head af-sub" style="margin-top:46px"><h2>Афиша мира</h2></div>
+    <div class="filters"><div class="frow"><span class="fl">Показать</span>${AF_F.map(([k,l,f]) => `<button class="chip ${afFilter===k?'on':''}" data-af="${k}">${l}<small>${world.filter(f).length}</small></button>`).join('')}<span class="fcount">плакатов: ${list.length}</span></div></div>
     ${list.length ? wall(soon, 'Скоро на экране') + wall(out, 'Уже идёт в мире') : '<div class="nores">Здесь пусто</div>'}`;
   view.querySelectorAll('[data-af]').forEach(b => b.onclick = () => { afFilter = b.dataset.af; showAfisha(); });
-  view.querySelectorAll('.af-slot').forEach(el => {
+  view.querySelectorAll('[data-shc]').forEach(b => b.onclick = () => { shCin = b.dataset.shc; showAfisha(); });
+  view.querySelectorAll('[data-shd]').forEach(b => b.onclick = () => { shDay = b.dataset.shd; showAfisha(); });
+  view.querySelectorAll('.af-slot[data-key]').forEach(el => {
+    const f = shows.films.find(x => x.key === el.dataset.key);
+    const pick = async () => { const m = await resolveKp(f); if (!m) { toast('На Кинопоиске не нашлось'); return null; } return m; };
+    el.querySelector('.af-poster').onclick = async () => { try { const m = await pick(); if (m) openCard(m); } catch(err){ toast('Ошибка: ' + err.message); } };
+    const more = el.querySelector('[data-act="more"]');
+    if (more) more.onclick = () => { shOpen.has(f.key) ? shOpen.delete(f.key) : shOpen.add(f.key); showAfisha(); };
+    const w = el.querySelector('[data-act="want"]');
+    if (w) w.onclick = async () => { w.disabled = true; try { const m = await pick(); if (m) await addWant(m); } catch(err){ toast('Ошибка: ' + err.message); } if (tab === 'afisha') showAfisha(); };
+  });
+  view.querySelectorAll('.af-slot[data-id]').forEach(el => {
     const d = afisha.find(x => x.id == el.dataset.id);
     el.querySelector('.af-poster').onclick = () => openCard(afMovie(d));
     const w = el.querySelector('[data-act="want"]');
@@ -777,6 +904,15 @@ const CHECKS = [
     const s = !docs.length ? 'bad' : (!soon || noPoster.length > 3) ? 'warn' : 'ok';
     return { s, t:`плакатов ${docs.length}: скоро ${soon}, уже идут ${docs.length - soon}, с датой в России ${ru}`, list };
   }],
+  ['Сеансы в наших кино', async () => {
+    const { data, error } = await sb.functions.invoke('showtimes', { body:{} });
+    if (error || data?.error) return { s:'bad', t:'Сеансы не грузятся: ' + (error?.message || data.error) };
+    const fl = data.films || [], errs = Object.entries(data.errors || {});
+    const n = c => fl.filter(f => f.shows.some(s => s.c === c)).length;
+    const t = `фильмов ${fl.length}: в «Синема 5» ${n('c5')}, в «М-Синеме» ${n('mc')}`;
+    if (errs.length) return { s: errs.length > 1 ? 'bad' : 'warn', t, list: errs.map(([c, e]) => `${c === 'c5' ? 'Синема 5' : 'М-Синема'}: ${e}`) };
+    return { s: fl.length ? 'ok' : 'warn', t };
+  }],
   ['Постеры грузятся', async () => {
     const urls = [...films.filter(seen).slice(0, 12).map(m => [m.t, m.poster || P(m.id)]), ...(afisha || []).slice(0, 8).map(d => [d.t, d.poster || P(d.id)])];
     const res = await Promise.all(urls.map(async ([t,u]) => [t, await ckImg(u)]));
@@ -811,7 +947,7 @@ const CHECKS = [
 ];
 function showCheck(){
   view.innerHTML = `<div class="ck"><h3>Техосмотр</h3>
-    <p class="sub">Проверяет базу, Кассу, Афишу, постеры и порядок в данных. Тратит 4 запроса к Кинопоиску из дневного лимита, поэтому запускается по кнопке.</p>
+    <p class="sub">Проверяет базу, Кассу, Афишу, сеансы кинотеатров, постеры и порядок в данных. Тратит 4 запроса к Кинопоиску из дневного лимита, поэтому запускается по кнопке.</p>
     <ul class="ck-list" id="ckl">${CHECKS.map(([n],i) => `<li class="ck-item" id="ck${i}"><span class="ck-ic">○</span><div><div class="ck-name">${n}</div><div class="ck-det">ещё не проверяли</div></div></li>`).join('')}</ul>
     <div class="ck-sum" id="cks"></div><button class="btn" id="ckgo">Запустить проверку</button></div>`;
   document.getElementById('ckgo').onclick = runChecks;
